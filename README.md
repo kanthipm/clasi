@@ -4,7 +4,7 @@
 Alan Qiao, Camden Chin, Kanthi Makineedi, Advait Bhaskar Pandit, Julia Healey-Parera
 
 ## Description
-Clasi is an interactive course recommendation tool designed to streamline Duke students' class selection process. By balancing major requirements, graduation codes, GPA goals, and personal interests, Clasi helps students—especially first-years—make informed scheduling decisions.
+Clasi is an interactive course recommendation tool designed to streamline Duke students' class selection process. By balancing major requirements, graduation codes, GPA goals, and personal interests, Clasi helps students, especially first-years, make informed scheduling decisions.
 
 Users can customize recommendations based on:
 - **Academic Filters**: Area of Knowledge codes, Methods of Inquiry tags, major-specific courses.
