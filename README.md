@@ -30,6 +30,9 @@ This page allows students to search for courses, filter by various parameters, a
 A detailed view of a course, including professor ratings, reviews, prerequisites, and an option to write a review.
 ![image](https://github.com/user-attachments/assets/2bb42b68-b60d-417b-bbf0-3710c4b27265)
 
+### **Link To Deploy**
+https://zp1v56uxy8rdx5ypatb0ockcb9tr6a-oci3--5173--7f809d15.local-credentialless.webcontainer-api.io/
+
 ## Installation
 
 ### 1️⃣ Clone the Repository
