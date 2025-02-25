@@ -22,17 +22,13 @@ Users can customize recommendations based on:
 - **AI-Driven Class Suggestions** – Predicts enjoyment based on past class ratings and teaching styles.  
 - **Schedule Generator** – Uses a greedy algorithm to create conflict-free schedules.  
 
-## UI Screenshots
-![image](https://github.com/user-attachments/assets/983f5a4c-aecb-4fdb-a42c-82db29b9b51b)
-![image](https://github.com/user-attachments/assets/2bb42b68-b60d-417b-bbf0-3710c4b27265)
-
 ### **Course Search Page**
 This page allows students to search for courses, filter by various parameters, and view class details.
-![Course Search Page](./path-to-image1.png)
+![image](https://github.com/user-attachments/assets/983f5a4c-aecb-4fdb-a42c-82db29b9b51b)
 
 ### **Course Detail Page**
 A detailed view of a course, including professor ratings, reviews, prerequisites, and an option to write a review.
-![Course Detail Page](./path-to-image2.png)
+![image](https://github.com/user-attachments/assets/2bb42b68-b60d-417b-bbf0-3710c4b27265)
 
 ## Installation
 
