@@ -1,4 +1,4 @@
-# CLASI – Your Schedule Solution
+# CLASI – Duke Course Scheduling Solution
 
 ## Team Members
 Alan Qiao, Camden Chin, Kanthi Makineedi, Advait Bhaskar Pandit, Julia Healey-Parera
