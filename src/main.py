@@ -1,13 +1,23 @@
 # src/main.py
 
-from .api_client import get_courses_by_subject
-
+from .api_client import get_all_subjects
 
 def main():
-    # Change the subject as needed; here we use "AAAS" as an example.
-    subject = "AAAS"
-    courses = get_courses_by_subject(subject)
-    print(courses)
+    print("Starting main...")
+    subjects_data = get_all_subjects()
+    print("Subjects data:", subjects_data)
+
+    if "error" in subjects_data:
+        print("Error:", subjects_data)
+        return
+
+    items = subjects_data.get("items", [])
+    print(f"Found {len(items)} subject(s).")
+
+    for item in items:
+        code = item.get("code")
+        desc = item.get("desc")
+        print(f"{code} - {desc}")
 
 if __name__ == "__main__":
-    main()
+    main()  

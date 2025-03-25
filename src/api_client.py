@@ -3,17 +3,15 @@
 import requests
 from config.settings import BASE_URL, API_KEY
 
-def get_courses_by_subject(subject):
-    """
-    Fetch courses for the given subject.
-    Example: subject="AAAS" to fetch courses for that subject.
-    """
-    url = f"{BASE_URL}/courses/subject/{subject}"
+def get_all_subjects():
+    url = f"{BASE_URL}/list_of_values/fieldname/SUBJECT"
     params = {"access_token": API_KEY}
     response = requests.get(url, params=params)
     
+    print("Status code:", response.status_code)   # Debug line
+    print("Raw response text:", response.text)    # Debug line
+    
     if response.ok:
-        return response.json()  # Successfully got the data
+        return response.json()
     else:
-        # Handle errors here as needed
         return {"error": response.status_code, "message": response.text}
