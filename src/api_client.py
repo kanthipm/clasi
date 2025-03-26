@@ -43,15 +43,22 @@ def get_all_subjects():
         return {"error": response.status_code, "message": response.text}
     
 def get_course_listings(subject_name): 
-    url = f"{BASE_URL}/curriculum/courses/subject/{subject_name}"
+    url = f"{BASE_URL}/courses/subject/{subject_name}"
     params = {"access_token": API_KEY}
+    
     response = requests.get(url, params=params)
+
+    # Print the full request URL to verify encoding and structure
+    print("Requesting:", response.url)
+    print("Status code:", response.status_code)
     
-    print("Status code:", response.status_code)   # Debug line
-    print("Raw response text:", response.text)    # Debug line
-    
-    if response.ok:
-        return response.json()
-    else:
-        return {"error": response.status_code, "message": response.text}
+    try:
+        json_data = response.json()
+        print("✅ Parsed JSON successfully")
+        return json_data
+    except ValueError:
+        print("❌ Failed to parse JSON. Raw response:")
+        print(response.text)
+        return {"error": "Invalid JSON", "message": response.text}
+
 
