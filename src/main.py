@@ -1,23 +1,11 @@
 # src/main.py
-
-from .api_client import get_all_subjects
+from .dropdown_items import term_list, subj_list, acad_car_list
 
 def main():
-    print("Starting main...")
-    subjects_data = get_all_subjects()
-    print("Subjects data:", subjects_data)
-
-    if "error" in subjects_data:
-        print("Error:", subjects_data)
-        return
-
-    items = subjects_data.get("items", [])
-    print(f"Found {len(items)} subject(s).")
-
-    for item in items:
-        code = item.get("code")
-        desc = item.get("desc")
-        print(f"{code} - {desc}")
+    subjects = subj_list()
+    terms = term_list()
+    acad_car = acad_car_list()
+    print(terms)
 
 if __name__ == "__main__":
     main()  
