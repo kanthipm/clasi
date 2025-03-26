@@ -1,0 +1,33 @@
+[departments]
+  └─ code (PK)
+  └─ name
+
+[courses]
+  └─ id (PK)
+  └─ department (FK → departments.code)
+  └─ catalog_nbr
+  └─ title
+  └─ topic_id
+
+[course_offerings]
+  └─ crse_id (FK → courses.id)
+  └─ crse_offer_nbr
+  └─ description
+  └─ grading_basis
+  └─ acad_career
+  └─ acad_group
+  └─ drop_consent
+  └─ rqrmnt_group
+  └─ components
+  └─ curriculum_codes
+
+[sections]
+  └─ crse_id (FK → courses.id)
+  └─ strm
+  └─ section
+  └─ professor
+  └─ days
+  └─ start_time
+  └─ end_time
+  └─ location
+  └─ component

@@ -1,7 +1,7 @@
 # src/main.py
 from .dropdown_items import term_list, subj_list, acad_car_list
 from .api_client import get_all_subjects
-from .OLD_db import create_table, insert_many, query
+from .db import create_table, insert_many, query
 
 def main():
     ###EXAMPLE FOR HOW GENERALIZABLE FUNCTIONS WORK: creating department table 
