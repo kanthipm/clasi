@@ -41,3 +41,17 @@ def get_all_subjects():
         return response.json()
     else:
         return {"error": response.status_code, "message": response.text}
+    
+def get_course_listings(subject_name): 
+    url = f"{BASE_URL}/curriculum/courses/subject/{subject_name}"
+    params = {"access_token": API_KEY}
+    response = requests.get(url, params=params)
+    
+    print("Status code:", response.status_code)   # Debug line
+    print("Raw response text:", response.text)    # Debug line
+    
+    if response.ok:
+        return response.json()
+    else:
+        return {"error": response.status_code, "message": response.text}
+
