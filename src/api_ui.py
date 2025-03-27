@@ -1,7 +1,9 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from functools import wraps
 import sqlite3, hashlib, os, binascii
-from .db import create_table, insert_many, query, connect_db
+from .db import create_table, insert_many, query, connect_db, add_columns_if_missing
+from werkzeug.utils import secure_filename
+
 
 ##### IMPORTANT: for final product, replace app.secret_key using os.getenv("SECRET_KEY") for secure protection
 #import os
@@ -12,6 +14,12 @@ from .db import create_table, insert_many, query, connect_db
 app = Flask(__name__)
 app.secret_key = "replace_this_with_getenv_secret_key_soon"
 
+# Configure file upload for profile pictures
+app.config['UPLOAD_FOLDER'] = 'static/profile_pics'
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+
 # Ensure users table exists + add year & major columns if missing
 create_table("users", {
     "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
@@ -20,6 +28,18 @@ create_table("users", {
     "password_hash": "TEXT NOT NULL",
     "year": "TEXT",
     "major": "TEXT"
+})
+
+add_columns_if_missing("users", {
+    "second_major": "TEXT",
+    "minor": "TEXT",
+    "advisor_name": "TEXT",
+    "advisor_email": "TEXT",
+    "expected_grad_term": "TEXT",
+    "admit_term": "TEXT",
+    "gpa": "REAL",
+    "units": "REAL",
+    "profile_pic": "TEXT"
 })
 
 # Password hashing utilities
@@ -38,6 +58,9 @@ def verify_password(stored_hash: str, provided_password: str) -> bool:
     salt = binascii.unhexlify(salt_hex)
     new_hash = hashlib.pbkdf2_hmac('sha256', provided_password.encode(), salt, 200_000)
     return binascii.hexlify(new_hash).decode() == hash_hex
+
+def allowed_file(filename):
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 # Login-required decorator
 
@@ -100,32 +123,66 @@ def courses_from_db():
     conn.close()
     return jsonify([{"id":r[0], "subject":r[1], "subject_name":r[2], "catalog_nbr":r[3], "title":r[4], "term_code":r[5], "term_desc":r[6], "effdt":r[7], "multi_off":r[8], "topic_id":r[9]} for r in rows])
 
+# Update profile route
 @app.route("/profile")
 @login_required
 def profile():
     row = query("users", {"id": session["user_id"]})[0]
-    user = {"id": row[0], "name": row[1], "username": row[2], "year": row[4], "major": row[5]}
+    user = {
+        "id": row[0], "name": row[1], "username": row[2], "year": row[4], "major": row[5],
+        "second_major": row[6], "minor": row[7], "advisor_name": row[8], "advisor_email": row[9],
+        "expected_grad_term": row[10], "admit_term": row[11], "gpa": row[12], "units": row[13],
+        "profile_pic": row[14]
+    }
     return render_template("profile.html", user=user)
 
-@app.route("/profile/edit", methods=["GET","POST"])
+@app.route("/profile/edit", methods=["GET", "POST"])
 @login_required
 def edit_profile():
     row = query("users", {"id": session["user_id"]})[0]
-    current_year, current_major = row[4], row[5]
-    conn = connect_db()
-    subjects = [r[0] for r in conn.execute("SELECT DISTINCT subject FROM courses").fetchall()]
-    conn.close()
-    years = [("2029","Incoming Freshman"),("2028","Freshman"),("2027","Sophomore"),("2026","Junior"),("2025","Senior")]
+    current = {
+        "year": row[4], "major": row[5], "second_major": row[6], "minor": row[7],
+        "advisor_name": row[8], "advisor_email": row[9], "expected_grad_term": row[10],
+        "admit_term": row[11], "gpa": row[12], "units": row[13], "profile_pic": row[14]
+    }
+
     if request.method == "POST":
         year = request.form["year"]
         major = request.form["major"]
+        second_major = request.form.get("second_major")
+        minor = request.form.get("minor")
+        advisor_name = request.form.get("advisor_name")
+        advisor_email = request.form.get("advisor_email")
+        expected_grad_term = request.form.get("expected_grad_term")
+        admit_term = request.form.get("admit_term")
+        gpa = request.form.get("gpa")
+        units = request.form.get("units")
+        file = request.files.get("profile_pic")
+
+        filename = current["profile_pic"]
+        if file and allowed_file(file.filename):
+            safe_filename = secure_filename(file.filename)
+            filename = f"{session['user_id']}_{safe_filename}"
+            file.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+        # ✅ Helpful debug logs
+        print("Saving profile pic and fields...")
+        print("Received file:", file.filename if file else "No file")
+        print("Final saved filename:", filename)
+
         conn = connect_db()
-        conn.execute("UPDATE users SET year=?, major=? WHERE id=?", (year, major, session["user_id"]))
+        conn.execute("""
+            UPDATE users SET year=?, major=?, second_major=?, minor=?, advisor_name=?, advisor_email=?,
+            expected_grad_term=?, admit_term=?, gpa=?, units=?, profile_pic=? WHERE id=?
+        """, (year, major, second_major, minor, advisor_name, advisor_email,
+              expected_grad_term, admit_term, gpa, units, filename, session["user_id"]))
         conn.commit()
         conn.close()
         flash("Profile updated!", "success")
         return redirect(url_for("profile"))
-    return render_template("edit_profile.html", years=years, subjects=subjects, current_year=current_year, current_major=current_major)
+
+    return render_template("edit_profile.html", **current)
+
 
 if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False)
+    app.run(debug=True)
