@@ -63,13 +63,14 @@ def seed_data():
         {"code": "BIO", "name": "Biology"},
     ])
 
+    # Note: For courses, multiple AOKs/MOIs are stored as comma-separated strings.
     courses = [
-        {"id": "CSC101", "department": "CSC", "catalog_nbr": "101", "title": "Intro to Programming", "topic_id": "", "aok": "QS", "moi": "W"},
-        {"id": "CSC201", "department": "CSC", "catalog_nbr": "201", "title": "Data Structures", "topic_id": "", "aok": "QS", "moi": "EI"},
+        {"id": "CSC101", "department": "CSC", "catalog_nbr": "101", "title": "Intro to Programming", "topic_id": "", "aok": "QS,ALP", "moi": "W"},
+        {"id": "CSC201", "department": "CSC", "catalog_nbr": "201", "title": "Data Structures", "topic_id": "", "aok": "QS", "moi": "EI,STS"},
         {"id": "MATH101", "department": "MATH", "catalog_nbr": "101", "title": "Calculus I", "topic_id": "", "aok": "NS", "moi": "STS"},
         {"id": "MATH201", "department": "MATH", "catalog_nbr": "201", "title": "Linear Algebra", "topic_id": "", "aok": "QS", "moi": "W"},
         {"id": "ENG101", "department": "ENG", "catalog_nbr": "101", "title": "English Literature I", "topic_id": "", "aok": "ALP", "moi": "R"},
-        {"id": "ENG201", "department": "ENG", "catalog_nbr": "201", "title": "Shakespearean Studies", "topic_id": "", "aok": "ALP", "moi": "CCI"},
+        {"id": "ENG201", "department": "ENG", "catalog_nbr": "201", "title": "Shakespearean Studies", "topic_id": "", "aok": "ALP,CZ", "moi": "CCI,R"},
         {"id": "BIO101", "department": "BIO", "catalog_nbr": "101", "title": "Intro to Biology", "topic_id": "", "aok": "NS", "moi": "STS"},
         {"id": "BIO201", "department": "BIO", "catalog_nbr": "201", "title": "Genetics", "topic_id": "", "aok": "NS", "moi": "EI"},
     ]

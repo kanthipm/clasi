@@ -82,7 +82,7 @@ def index():
     conn.close()
     return render_template("index.html", subjects=subjects)
 
-# Updated /courses endpoint with multi-filter support and professor aggregation
+# Updated /courses endpoint: All selected AOK and MOI filters must be satisfied.
 @app.route("/courses")
 def courses_from_db():
     # Get query parameters
@@ -91,7 +91,6 @@ def courses_from_db():
     aok_list = request.args.getlist("aok")
     moi_list = request.args.getlist("moi")
 
-    # Build base SQL with LEFT JOIN to always include professor info (aggregated)
     base_sql = """
     SELECT courses.*, GROUP_CONCAT(DISTINCT sections.professor) as professors
     FROM courses
@@ -104,22 +103,19 @@ def courses_from_db():
         clauses.append("courses.department = ?")
         params.append(department)
     
+    # For each selected AOK, add an individual condition (AND)
     if aok_list:
-        aok_clauses = []
         for aok in aok_list:
-            aok_clauses.append("courses.aok LIKE ?")
+            clauses.append("courses.aok LIKE ?")
             params.append(f"%{aok}%")
-        clauses.append("(" + " OR ".join(aok_clauses) + ")")
     
+    # For each selected MOI, add an individual condition (AND)
     if moi_list:
-        moi_clauses = []
         for moi in moi_list:
-            moi_clauses.append("courses.moi LIKE ?")
+            clauses.append("courses.moi LIKE ?")
             params.append(f"%{moi}%")
-        clauses.append("(" + " OR ".join(moi_clauses) + ")")
     
     if professor:
-        # If a professor filter is provided, require that the professor field in sections matches.
         clauses.append("sections.professor LIKE ?")
         params.append(f"%{professor}%")
     
@@ -133,7 +129,6 @@ def courses_from_db():
     rows = conn.execute(final_sql, params).fetchall()
     conn.close()
 
-    # Format results to include the aggregated professors
     results = []
     for r in rows:
         results.append({
@@ -148,6 +143,21 @@ def courses_from_db():
         })
 
     return jsonify(results)
+
+# New endpoint for professor name suggestions (autocomplete)
+@app.route("/professors")
+def professor_suggestions():
+    query_text = request.args.get("query", "").strip()
+    conn = connect_db()
+    if query_text:
+        sql = "SELECT DISTINCT professor FROM sections WHERE professor LIKE ? ORDER BY professor"
+        param = (f"%{query_text}%",)
+        rows = conn.execute(sql, param).fetchall()
+    else:
+        rows = []
+    conn.close()
+    suggestions = [r[0] for r in rows if r[0]]
+    return jsonify(suggestions)
 
 @app.route("/profile")
 @login_required
