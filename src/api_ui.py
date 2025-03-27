@@ -1,18 +1,12 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from functools import wraps
 import sqlite3, hashlib, os, binascii
-from .db import create_table, insert_many, query, connect_db
-
-##### IMPORTANT: for final product, replace app.secret_key using os.getenv("SECRET_KEY") for secure protection
-#import os
-#from flask import Flask
-#app = Flask(__name__)
-#app.secret_key = os.getenv("SECRET_KEY") or os.urandom(32)
+from src.db import create_table, insert_many, query, connect_db
 
 app = Flask(__name__)
 app.secret_key = "replace_this_with_getenv_secret_key_soon"
 
-# Ensure users table exists + add year & major columns if missing
+# Ensure the users table exists
 create_table("users", {
     "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "name": "TEXT NOT NULL",
@@ -23,12 +17,10 @@ create_table("users", {
 })
 
 # Password hashing utilities
-
 def hash_password(password: str) -> str:
     salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 200_000)
     return f"{binascii.hexlify(salt).decode()}:{binascii.hexlify(dk).decode()}"
-
 
 def verify_password(stored_hash: str, provided_password: str) -> bool:
     try:
@@ -40,7 +32,6 @@ def verify_password(stored_hash: str, provided_password: str) -> bool:
     return binascii.hexlify(new_hash).decode() == hash_hex
 
 # Login-required decorator
-
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -86,19 +77,87 @@ def logout():
 @login_required
 def index():
     conn = connect_db()
-    subjects = [r[0] for r in conn.execute("SELECT DISTINCT subject FROM courses").fetchall()]
+    # Get distinct department values from the courses table
+    subjects = [r[0] for r in conn.execute("SELECT DISTINCT department FROM courses").fetchall()]
     conn.close()
     return render_template("index.html", subjects=subjects)
 
+# Updated /courses endpoint: All selected AOK and MOI filters must be satisfied.
 @app.route("/courses")
 def courses_from_db():
-    subject = request.args.get("subject", "")
-    sql = "SELECT * FROM courses" + (" WHERE subject = ?" if subject else "")
-    params = [subject] if subject else []
+    # Get query parameters
+    department = request.args.get("department", "").strip()
+    professor = request.args.get("professor", "").strip()
+    aok_list = request.args.getlist("aok")
+    moi_list = request.args.getlist("moi")
+
+    base_sql = """
+    SELECT courses.*, GROUP_CONCAT(DISTINCT sections.professor) as professors
+    FROM courses
+    LEFT JOIN sections ON courses.id = sections.crse_id
+    """
+    clauses = []
+    params = []
+
+    if department:
+        clauses.append("courses.department = ?")
+        params.append(department)
+    
+    # For each selected AOK, add an individual condition (AND)
+    if aok_list:
+        for aok in aok_list:
+            clauses.append("courses.aok LIKE ?")
+            params.append(f"%{aok}%")
+    
+    # For each selected MOI, add an individual condition (AND)
+    if moi_list:
+        for moi in moi_list:
+            clauses.append("courses.moi LIKE ?")
+            params.append(f"%{moi}%")
+    
+    if professor:
+        clauses.append("sections.professor LIKE ?")
+        params.append(f"%{professor}%")
+    
+    final_sql = base_sql
+    if clauses:
+        final_sql += " WHERE " + " AND ".join(clauses)
+    
+    final_sql += " GROUP BY courses.id"
+
     conn = connect_db()
-    rows = conn.execute(sql, params).fetchall()
+    rows = conn.execute(final_sql, params).fetchall()
     conn.close()
-    return jsonify([{"id":r[0], "subject":r[1], "subject_name":r[2], "catalog_nbr":r[3], "title":r[4], "term_code":r[5], "term_desc":r[6], "effdt":r[7], "multi_off":r[8], "topic_id":r[9]} for r in rows])
+
+    results = []
+    for r in rows:
+        results.append({
+            "id": r[0],
+            "department": r[1],
+            "catalog_nbr": r[2],
+            "title": r[3],
+            "topic_id": r[4],
+            "aok": r[5],
+            "moi": r[6],
+            "professors": r[7]
+        })
+
+    return jsonify(results)
+
+# New endpoint for professor name suggestions (autocomplete)
+@app.route("/professors")
+def professor_suggestions():
+    query_text = request.args.get("query", "").strip()
+    conn = connect_db()
+    if query_text:
+        sql = "SELECT DISTINCT professor FROM sections WHERE professor LIKE ? ORDER BY professor"
+        param = (f"%{query_text}%",)
+        rows = conn.execute(sql, param).fetchall()
+    else:
+        rows = []
+    conn.close()
+    suggestions = [r[0] for r in rows if r[0]]
+    return jsonify(suggestions)
 
 @app.route("/profile")
 @login_required
@@ -113,7 +172,7 @@ def edit_profile():
     row = query("users", {"id": session["user_id"]})[0]
     current_year, current_major = row[4], row[5]
     conn = connect_db()
-    subjects = [r[0] for r in conn.execute("SELECT DISTINCT subject FROM courses").fetchall()]
+    subjects = [r[0] for r in conn.execute("SELECT DISTINCT department FROM courses").fetchall()]
     conn.close()
     years = [("2029","Incoming Freshman"),("2028","Freshman"),("2027","Sophomore"),("2026","Junior"),("2025","Senior")]
     if request.method == "POST":
