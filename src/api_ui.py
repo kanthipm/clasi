@@ -1,9 +1,65 @@
-from flask import Flask, render_template, request, jsonify
-from src.db import connect_db  # adjust import based on your project structure
+from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
+from werkzeug.security import generate_password_hash, check_password_hash
+from .db import create_table, insert_many, query, connect_db
+from functools import wraps
+import sqlite3
 
 app = Flask(__name__)
+app.secret_key = "replace_this_with_a_strong_secret"
+
+# 1️⃣ Ensure users table exists
+create_table("users", {
+    "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+    "name": "TEXT NOT NULL",
+    "username": "TEXT UNIQUE NOT NULL",
+    "password_hash": "TEXT NOT NULL"
+})
+
+def login_required(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if "user_id" not in session:
+            return redirect(url_for("login"))
+        return f(*args, **kwargs)
+    return decorated
+
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "POST":
+        name = request.form["name"].strip()
+        username = request.form["username"].strip()
+        password = request.form["password"]
+        hashed = generate_password_hash(password)
+        try:
+            insert_many("users", [{"name": name, "username": username, "password_hash": hashed}])
+            flash("Account created! Please log in.", "success")
+            return redirect(url_for("login"))
+        except sqlite3.IntegrityError:
+            flash("Username already taken.", "danger")
+
+    return render_template("signup.html")
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    if request.method == "POST":
+        username = request.form["username"].strip()
+        password = request.form["password"]
+        user = query("users", {"username": username})
+        if user and check_password_hash(user[0][3], password):
+            session["user_id"] = user[0][0]
+            session["username"] = user[0][2]
+            return redirect(url_for("index"))
+        flash("Invalid credentials", "danger")
+
+    return render_template("login.html")
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("login"))
 
 @app.route("/")
+@login_required
 def index():
     # Connect to the database
     conn = connect_db()
