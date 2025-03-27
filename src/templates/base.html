@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>{% block title %}Clasier{% endblock %}</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Roboto, sans-serif;
+      background-color: #f5faff;
+      color: #333;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background-color: #007bff;
+      padding: 1rem;
+    }
+    header a {
+      color: #fff;
+      text-decoration: none;
+      font-weight: 600;
+      margin: 0 0.5rem;
+    }
+    header a:hover {
+      text-decoration: underline;
+    }
+    .nav-left a {
+      font-size: 1.5rem;
+    }
+    .separator {
+      color: #fff;
+      margin: 0 0.5rem;
+    }
+    main {
+      max-width: 800px;
+      margin: 2rem auto;
+      padding: 1rem;
+      background: #fff;
+      border-radius: 8px;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <nav class="nav-left">
+      <a href="{{ url_for('index') }}">CLASI</a>
+    </nav>
+    {% if session.username %}
+      <nav class="nav-right">
+        <a href="{{ url_for('profile') }}">Profile</a>
+        <span class="separator">|</span>
+        <a href="{{ url_for('logout') }}">Logout</a>
+      </nav>
+    {% endif %}
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
