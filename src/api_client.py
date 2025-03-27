@@ -62,3 +62,15 @@ def get_course_listings(subject_name):
         return {"error": "Invalid JSON", "message": response.text}
 
 
+def get_course_offering_metadata(crse_id: str, strm: str):
+    url = f"{BASE_URL}/classes/strm/{strm}/crse_id/{crse_id}"
+    params = {"access_token": API_KEY}
+    response = requests.get(url, params=params)
+
+    print("Requesting:", response.url)
+    if response.ok:
+        return response.json()
+    else:
+        print("❌ Error fetching course offering metadata")
+        return None
+
