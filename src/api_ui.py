@@ -86,19 +86,35 @@ def logout():
 @login_required
 def index():
     conn = connect_db()
-    subjects = [r[0] for r in conn.execute("SELECT DISTINCT subject FROM courses").fetchall()]
+    subjects = [r[0] for r in conn.execute("SELECT DISTINCT department FROM courses").fetchall()]
     conn.close()
     return render_template("index.html", subjects=subjects)
 
 @app.route("/courses")
 def courses_from_db():
-    subject = request.args.get("subject", "")
-    sql = "SELECT * FROM courses" + (" WHERE subject = ?" if subject else "")
-    params = [subject] if subject else []
+    department = request.args.get("department", "")
+    sql = "SELECT * FROM courses" + (" WHERE department = ?" if department else "")
+    params = [department] if department else []
+
     conn = connect_db()
     rows = conn.execute(sql, params).fetchall()
     conn.close()
-    return jsonify([{"id":r[0], "subject":r[1], "subject_name":r[2], "catalog_nbr":r[3], "title":r[4], "term_code":r[5], "term_desc":r[6], "effdt":r[7], "multi_off":r[8], "topic_id":r[9]} for r in rows])
+
+    results = []
+    for r in rows:
+        if len(r) < 5:
+            print("⚠️ Skipping row with length", len(r), "→", r)
+            continue
+        results.append({
+            "id": r[0],
+            "department": r[1],
+            "catalog_nbr": r[2],
+            "title": r[3],
+            "topic_id": r[4]
+        })
+
+    return jsonify(results)
+
 
 @app.route("/profile")
 @login_required
@@ -113,7 +129,7 @@ def edit_profile():
     row = query("users", {"id": session["user_id"]})[0]
     current_year, current_major = row[4], row[5]
     conn = connect_db()
-    subjects = [r[0] for r in conn.execute("SELECT DISTINCT subject FROM courses").fetchall()]
+    subjects = [r[0] for r in conn.execute("SELECT DISTINCT department FROM courses").fetchall()]
     conn.close()
     years = [("2029","Incoming Freshman"),("2028","Freshman"),("2027","Sophomore"),("2026","Junior"),("2025","Senior")]
     if request.method == "POST":

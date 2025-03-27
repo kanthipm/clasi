@@ -12,35 +12,23 @@ def reset_db():
     if os.path.exists(DB_FILE):
         os.remove(DB_FILE)
 
-
 def create_tables():
     create_table("departments", {
         "code": "TEXT PRIMARY KEY",
-        "desc": "TEXT"
+        "name": "TEXT"
     })
+
     create_table("courses", {
         "id": "TEXT PRIMARY KEY",
-        "subject": "TEXT",
-        "subject_name": "TEXT",
+        "department": "TEXT",
         "catalog_nbr": "TEXT",
         "title": "TEXT",
-        "term_code": "TEXT",
-        "term_desc": "TEXT",
-        "effdt": "TEXT",
-        "multi_off": "TEXT",
         "topic_id": "TEXT"
     })
-    create_table("course_terms", {
-        "crse_id": "TEXT",
-        "strm": "TEXT",
-        "strm_descr": "TEXT",
-        "PRIMARY KEY (crse_id, strm)": ""
-    })
+
     create_table("course_offerings", {
         "crse_id": "TEXT",
-        "strm": "TEXT",
-        "catalog_nbr": "TEXT",
-        "title": "TEXT",
+        "crse_offer_nbr": "TEXT",
         "description": "TEXT",
         "grading_basis": "TEXT",
         "acad_career": "TEXT",
@@ -49,50 +37,66 @@ def create_tables():
         "rqrmnt_group": "TEXT",
         "components": "TEXT",
         "curriculum_codes": "TEXT",
-        "PRIMARY KEY (crse_id, strm)": ""
+        "PRIMARY KEY (crse_id, crse_offer_nbr)": ""
     })
 
+    create_table("sections", {
+        "crse_id": "TEXT",
+        "strm": "TEXT",
+        "section": "TEXT",
+        "professor": "TEXT",
+        "days": "TEXT",
+        "start_time": "TEXT",
+        "end_time": "TEXT",
+        "location": "TEXT",
+        "component": "TEXT",
+        "PRIMARY KEY (crse_id, strm, section)": ""
+    })
 
 def seed_data():
-    insert_many("departments", [{"code": "CSC", "desc": "Computer Science"}])
+    insert_many("departments", [{
+        "code": "COMPSCI",
+        "name": "Computer Science"
+    }])
 
     insert_many("courses", [{
         "id": "014361",
-        "subject": "CSC",
-        "subject_name": "Computer Science",
+        "department": "CSC",
         "catalog_nbr": "101",
         "title": "Intro to Programming",
-        "term_code": "1940",
-        "term_desc": "Fall 2025",
-        "effdt": "2025-01-01",
-        "multi_off": "",
         "topic_id": ""
     }])
 
-    insert_many("course_terms", [{"crse_id": "014361", "strm": "1940", "strm_descr": "Fall 2025"}])
-
     insert_many("course_offerings", [{
         "crse_id": "014361",
-        "strm": "1940",
-        "catalog_nbr": "101",
-        "title": "Intro to Programming",
+        "crse_offer_nbr": "1",
         "description": "Learn the basics of Python programming.",
         "grading_basis": "Letter",
         "acad_career": "Undergraduate",
         "acad_group": "UG",
-        "drop_consent": "",
+        "drop_consent": "None",
         "rqrmnt_group": "",
         "components": "Lecture",
-        "curriculum_codes": ""
+        "curriculum_codes": "QS"
     }])
 
+    insert_many("sections", [{
+        "crse_id": "014361",
+        "strm": "1940",
+        "section": "001",
+        "professor": "Susan Rodger",
+        "days": "MWF",
+        "start_time": "10:05",
+        "end_time": "11:20",
+        "location": "LSRC A156",
+        "component": "Lecture"
+    }])
 
 def main():
     reset_db()
     create_tables()
     seed_data()
     print(f"✅ Seeded database created at {DB_FILE}")
-
 
 if __name__ == "__main__":
     main()
