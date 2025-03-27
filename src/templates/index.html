@@ -6,73 +6,105 @@
     display: flex;
     flex-wrap: wrap;
     gap: 1rem;
-    align-items: center;
+    align-items: flex-start;
     margin-bottom: 1.5rem;
   }
-  label {
-    flex: 1 0 150px;
+  .form-group {
+    flex: 1 0 200px;
   }
-  select, input, button {
+  label {
+    display: block;
+    margin-bottom: 0.25rem;
+    font-weight: bold;
+  }
+  select, input[type="text"] {
+    width: 100%;
     padding: 0.5rem;
     font-size: 1rem;
     border: 1px solid #ccc;
     border-radius: 4px;
-    flex: 2 0 200px;
+  }
+  .checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .checkbox-group label {
+    display: inline-block;
+    font-weight: normal;
+    margin-right: 0.5rem;
   }
   button {
+    padding: 0.5rem 1rem;
+    font-size: 1rem;
     background-color: #007bff;
     color: #fff;
     border: none;
+    border-radius: 4px;
     cursor: pointer;
   }
   button:hover {
     background-color: #0056b3;
   }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 1rem;
+  }
+  table, th, td {
+    border: 1px solid #ccc;
+  }
+  th, td {
+    padding: 0.5rem;
+    text-align: left;
+  }
 </style>
 
 <div class="container">
   <form id="courseForm">
-    <!-- Subject Dropdown -->
-    <div>
-      <label for="subject">Select Subject:</label>
-      <select name="department" id="department">
+    <!-- Department Dropdown -->
+    <div class="form-group">
+      <label for="department">Select Subject:</label>
+      <select id="department" name="department">
         <option value="">-- Choose a Subject --</option>
         {% for subj in subjects %}
           <option value="{{ subj }}">{{ subj }}</option>
         {% endfor %}
       </select>
     </div>
-    <!-- Areas of Knowledge Dropdown -->
-    <div>
-      <label for="aok">Select Area of Knowledge:</label>
-      <select id="aok" name="aok">
-        <option value="">-- Choose AOK --</option>
-        <option value="ALP">Arts, Literatures, and Performance [ALP]</option>
-        <option value="CZ">Civilizations [CZ]</option>
-        <option value="NS">Natural Sciences [NS]</option>
-        <option value="QS">Quantitative Studies [QS]</option>
-        <option value="SS">Sciences [SS]</option>
-      </select>
+
+    <!-- Areas of Knowledge Checkboxes -->
+    <div class="form-group">
+      <label>Area(s) of Knowledge:</label>
+      <div class="checkbox-group">
+        <label><input type="checkbox" name="aok" value="ALP"> ALP</label>
+        <label><input type="checkbox" name="aok" value="CZ"> CZ</label>
+        <label><input type="checkbox" name="aok" value="NS"> NS</label>
+        <label><input type="checkbox" name="aok" value="QS"> QS</label>
+        <label><input type="checkbox" name="aok" value="SS"> SS</label>
+      </div>
     </div>
-    <!-- Modes of Inquiry Dropdown -->
-    <div>
-      <label for="moi">Select Mode of Inquiry:</label>
-      <select id="moi" name="moi">
-        <option value="">-- Choose MOI --</option>
-        <option value="CCI">Cross-Cultural Inquiry [CCI]</option>
-        <option value="EI">Ethical Inquiry [EI]</option>
-        <option value="STS">Science, Technology, and Society [STS]</option>
-        <option value="FL">Foreign Language [FL]</option>
-        <option value="R">Research [R]</option>
-        <option value="W">Writing [W]</option>
-      </select>
+
+    <!-- Modes of Inquiry Checkboxes -->
+    <div class="form-group">
+      <label>Mode(s) of Inquiry:</label>
+      <div class="checkbox-group">
+        <label><input type="checkbox" name="moi" value="CCI"> CCI</label>
+        <label><input type="checkbox" name="moi" value="EI"> EI</label>
+        <label><input type="checkbox" name="moi" value="STS"> STS</label>
+        <label><input type="checkbox" name="moi" value="FL"> FL</label>
+        <label><input type="checkbox" name="moi" value="R"> R</label>
+        <label><input type="checkbox" name="moi" value="W"> W</label>
+      </div>
     </div>
+
     <!-- Professor Search -->
-    <div>
-      <label for="professor">Search Professor:</label>
+    <div class="form-group">
+      <label for="professor">Professor Search:</label>
       <input type="text" id="professor" name="professor" placeholder="Enter professor name">
     </div>
-    <div>
+
+    <div class="form-group" style="align-self: flex-end;">
       <button type="submit">Fetch Courses</button>
     </div>
   </form>
@@ -82,14 +114,52 @@
 <script>
   document.getElementById('courseForm').addEventListener('submit', function(e) {
     e.preventDefault();
-    var params = new URLSearchParams(new FormData(this));
+    
+    var department = document.getElementById('department').value;
+    var professor = document.getElementById('professor').value;
+    
+    // Collect checked AOK values
+    var aokCheckboxes = document.querySelectorAll('input[name="aok"]:checked');
+    var aokValues = Array.from(aokCheckboxes).map(cb => cb.value);
+    
+    // Collect checked MOI values
+    var moiCheckboxes = document.querySelectorAll('input[name="moi"]:checked');
+    var moiValues = Array.from(moiCheckboxes).map(cb => cb.value);
+    
+    var params = new URLSearchParams();
+    if(department) params.append("department", department);
+    if(professor) params.append("professor", professor);
+    aokValues.forEach(val => params.append("aok", val));
+    moiValues.forEach(val => params.append("moi", val));
+    
     fetch(`/courses?${params.toString()}`)
-      .then(resp => resp.json())
+      .then(response => response.json())
       .then(data => {
-        const resultsDiv = document.getElementById('results');
-        resultsDiv.innerHTML = data.error ? `<p>Error: ${data.error}</p>` : `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+        var resultsDiv = document.getElementById('results');
+        if(data.error){
+          resultsDiv.innerHTML = `<p>Error: ${data.error}</p>`;
+        } else {
+          var html = "<table><tr><th>ID</th><th>Department</th><th>Catalog #</th><th>Title</th><th>Topic</th><th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>";
+          data.forEach(course => {
+            html += `<tr>
+              <td>${course.id}</td>
+              <td>${course.department}</td>
+              <td>${course.catalog_nbr}</td>
+              <td>${course.title}</td>
+              <td>${course.topic_id}</td>
+              <td>${course.aok}</td>
+              <td>${course.moi}</td>
+              <td>${course.professors || ""}</td>
+            </tr>`;
+          });
+          html += "</table>";
+          resultsDiv.innerHTML = html;
+        }
       })
-      .catch(err => { console.error(err); alert('Error fetching courses.'); });
+      .catch(err => {
+        console.error(err);
+        alert("Error fetching courses.");
+      });
   });
 </script>
 {% endblock %}

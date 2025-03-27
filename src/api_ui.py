@@ -1,18 +1,12 @@
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from functools import wraps
 import sqlite3, hashlib, os, binascii
-from .db import create_table, insert_many, query, connect_db
-
-##### IMPORTANT: for final product, replace app.secret_key using os.getenv("SECRET_KEY") for secure protection
-#import os
-#from flask import Flask
-#app = Flask(__name__)
-#app.secret_key = os.getenv("SECRET_KEY") or os.urandom(32)
+from src.db import create_table, insert_many, query, connect_db
 
 app = Flask(__name__)
 app.secret_key = "replace_this_with_getenv_secret_key_soon"
 
-# Ensure users table exists + add year & major columns if missing
+# Ensure the users table exists
 create_table("users", {
     "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "name": "TEXT NOT NULL",
@@ -23,12 +17,10 @@ create_table("users", {
 })
 
 # Password hashing utilities
-
 def hash_password(password: str) -> str:
     salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 200_000)
     return f"{binascii.hexlify(salt).decode()}:{binascii.hexlify(dk).decode()}"
-
 
 def verify_password(stored_hash: str, provided_password: str) -> bool:
     try:
@@ -40,7 +32,6 @@ def verify_password(stored_hash: str, provided_password: str) -> bool:
     return binascii.hexlify(new_hash).decode() == hash_hex
 
 # Login-required decorator
-
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -86,35 +77,77 @@ def logout():
 @login_required
 def index():
     conn = connect_db()
+    # Get distinct department values from the courses table
     subjects = [r[0] for r in conn.execute("SELECT DISTINCT department FROM courses").fetchall()]
     conn.close()
     return render_template("index.html", subjects=subjects)
 
+# Updated /courses endpoint with multi-filter support and professor aggregation
 @app.route("/courses")
 def courses_from_db():
-    department = request.args.get("department", "")
-    sql = "SELECT * FROM courses" + (" WHERE department = ?" if department else "")
-    params = [department] if department else []
+    # Get query parameters
+    department = request.args.get("department", "").strip()
+    professor = request.args.get("professor", "").strip()
+    aok_list = request.args.getlist("aok")
+    moi_list = request.args.getlist("moi")
+
+    # Build base SQL with LEFT JOIN to always include professor info (aggregated)
+    base_sql = """
+    SELECT courses.*, GROUP_CONCAT(DISTINCT sections.professor) as professors
+    FROM courses
+    LEFT JOIN sections ON courses.id = sections.crse_id
+    """
+    clauses = []
+    params = []
+
+    if department:
+        clauses.append("courses.department = ?")
+        params.append(department)
+    
+    if aok_list:
+        aok_clauses = []
+        for aok in aok_list:
+            aok_clauses.append("courses.aok LIKE ?")
+            params.append(f"%{aok}%")
+        clauses.append("(" + " OR ".join(aok_clauses) + ")")
+    
+    if moi_list:
+        moi_clauses = []
+        for moi in moi_list:
+            moi_clauses.append("courses.moi LIKE ?")
+            params.append(f"%{moi}%")
+        clauses.append("(" + " OR ".join(moi_clauses) + ")")
+    
+    if professor:
+        # If a professor filter is provided, require that the professor field in sections matches.
+        clauses.append("sections.professor LIKE ?")
+        params.append(f"%{professor}%")
+    
+    final_sql = base_sql
+    if clauses:
+        final_sql += " WHERE " + " AND ".join(clauses)
+    
+    final_sql += " GROUP BY courses.id"
 
     conn = connect_db()
-    rows = conn.execute(sql, params).fetchall()
+    rows = conn.execute(final_sql, params).fetchall()
     conn.close()
 
+    # Format results to include the aggregated professors
     results = []
     for r in rows:
-        if len(r) < 5:
-            print("⚠️ Skipping row with length", len(r), "→", r)
-            continue
         results.append({
             "id": r[0],
             "department": r[1],
             "catalog_nbr": r[2],
             "title": r[3],
-            "topic_id": r[4]
+            "topic_id": r[4],
+            "aok": r[5],
+            "moi": r[6],
+            "professors": r[7]
         })
 
     return jsonify(results)
-
 
 @app.route("/profile")
 @login_required
