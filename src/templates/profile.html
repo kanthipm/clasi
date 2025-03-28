@@ -4,9 +4,9 @@
   <h1>Your Profile</h1>
 
   {% if user.profile_pic %}
-  <img src="{{ url_for('static', filename='profile_pics/' + user.profile_pic) }}" width="150" alt="Profile Picture">
+  <img src="{{ url_for('static', filename='profile_pics/' ~ user.profile_pic) }}" width="150" alt="Profile Picture">
   {% else %}
-    <img src="{{ url_for('static', filename='default_avatar.png') }}" width="150" alt="No Profile Picture">
+    <img src="{{ url_for('static', filename='default_avatar.png') }}" width="150" alt="Default Avatar">
   {% endif %}
 
   <p><strong>Name:</strong> {{ user.name }}</p>
