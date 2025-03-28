@@ -55,6 +55,12 @@
         <span class="separator">|</span>
         <a href="{{ url_for('logout') }}">Logout</a>
       </nav>
+    {% else %}
+      <nav class="nav-right">
+        <a href="{{ url_for('login') }}">Login</a>
+        <span class="separator">|</span>
+        <a href="{{ url_for('signup') }}">Sign Up</a>
+      </nav>
     {% endif %}
   </header>
 

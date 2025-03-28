@@ -1,8 +1,12 @@
 {% extends "base.html" %}
 {% block title %}CLASI - Course Listings{% endblock %}
 {% block content %}
+<!-- Pass current_user_id from the server -->
+<script>
+  const currentUserId = {{ current_user_id }};
+</script>
 <style>
-  form {
+  form.search-form {
     display: flex;
     flex-wrap: wrap;
     gap: 1rem;
@@ -59,7 +63,18 @@
     padding: 0.5rem;
     text-align: left;
   }
-  /* Styles for the autocomplete suggestions */
+  .course-row {
+    cursor: pointer;
+  }
+  .detail-row {
+    background-color: #f9f9f9;
+  }
+  .favorite-btn {
+    cursor: pointer;
+    font-size: 1.2rem;
+    margin-right: 5px;
+  }
+  /* Styles for autocomplete suggestions */
   .suggestions {
     border: 1px solid #ccc;
     background-color: #fff;
@@ -78,10 +93,20 @@
   .suggestion-item:hover {
     background-color: #f0f0f0;
   }
+  /* Styles for review section */
+  .review-section {
+    padding: 1rem;
+    border-top: 1px solid #ccc;
+  }
+  .review {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid #ddd;
+  }
 </style>
 
 <div class="container">
-  <form id="courseForm">
+  <form id="courseForm" class="search-form">
     <!-- Department Dropdown -->
     <div class="form-group">
       <label for="department">Select Subject:</label>
@@ -133,58 +158,207 @@
 </div>
 
 <script>
-  // Form submission handler
-  document.getElementById('courseForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
+  let favoritesList = []; // Holds favorited course IDs
+
+  // Immediately update the heart icon when toggling favorites.
+  function toggleFavorite(event, courseId) {
+    event.stopPropagation();
+    let heartSpan = event.target;
+    let currentlyFavorited = heartSpan.textContent.trim() === "❤️";
+    if (currentlyFavorited) {
+      heartSpan.textContent = "🤍"; // immediately change to white
+      fetch("/api/favorites", {
+        method: "DELETE",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({course_id: courseId})
+      })
+      .then(response => response.json())
+      .then(result => {
+        fetchFavorites();
+        fetchCourses(); // refresh table if needed
+      })
+      .catch(err => {
+        console.error(err);
+        alert("Error removing favorite.");
+        heartSpan.textContent = "❤️"; // revert on error
+      });
+    } else {
+      heartSpan.textContent = "❤️"; // immediately change to red
+      fetch("/api/favorites", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({course_id: courseId})
+      })
+      .then(response => response.json())
+      .then(result => {
+        fetchFavorites();
+        fetchCourses();
+      })
+      .catch(err => {
+        console.error(err);
+        alert("Error adding favorite.");
+        heartSpan.textContent = "🤍"; // revert on error
+      });
+    }
+  }
+
+  // Fetch favorites for the current user.
+  function fetchFavorites() {
+    fetch("/api/favorites")
+      .then(response => response.json())
+      .then(data => {
+        favoritesList = data.map(course => course.id);
+      })
+      .catch(err => console.error("Error fetching favorites:", err));
+  }
+
+  // Fetch courses using /api/courses.
+  function fetchCourses() {
     var department = document.getElementById('department').value;
     var professor = document.getElementById('professor').value;
-    
-    // Collect checked AOK values
     var aokCheckboxes = document.querySelectorAll('input[name="aok"]:checked');
     var aokValues = Array.from(aokCheckboxes).map(cb => cb.value);
-    
-    // Collect checked MOI values
     var moiCheckboxes = document.querySelectorAll('input[name="moi"]:checked');
     var moiValues = Array.from(moiCheckboxes).map(cb => cb.value);
-    
     var params = new URLSearchParams();
-    if(department) params.append("department", department);
-    if(professor) params.append("professor", professor);
+    if (department) params.append("department", department);
+    if (professor) params.append("professor", professor);
     aokValues.forEach(val => params.append("aok", val));
     moiValues.forEach(val => params.append("moi", val));
     
-    fetch(`/courses?${params.toString()}`)
+    fetch(`/api/courses?${params.toString()}`)
       .then(response => response.json())
       .then(data => {
-        var resultsDiv = document.getElementById('results');
-        if(data.error){
-          resultsDiv.innerHTML = `<p>Error: ${data.error}</p>`;
-        } else {
-          var html = "<table><tr><th>ID</th><th>Department</th><th>Catalog #</th><th>Title</th><th>Topic</th><th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>";
-          data.forEach(course => {
-            html += `<tr>
-              <td>${course.id}</td>
-              <td>${course.department}</td>
-              <td>${course.catalog_nbr}</td>
-              <td>${course.title}</td>
-              <td>${course.topic_id}</td>
-              <td>${course.aok}</td>
-              <td>${course.moi}</td>
-              <td>${course.professors || ""}</td>
-            </tr>`;
-          });
-          html += "</table>";
-          resultsDiv.innerHTML = html;
-        }
+        renderCourseTable(data);
       })
       .catch(err => {
         console.error(err);
         alert("Error fetching courses.");
       });
-  });
+  }
 
-  // Professor autocomplete functionality
+  // Render the course table with clickable rows and heart icons.
+  function renderCourseTable(courses) {
+    const resultsDiv = document.getElementById('results');
+    if (courses.error) {
+      resultsDiv.innerHTML = `<p>Error: ${courses.error}</p>`;
+      return;
+    }
+    let html = "<table><tr><th></th><th>ID</th><th>Department</th><th>Catalog #</th><th>Title</th><th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>";
+    courses.forEach(course => {
+      let heartIcon = favoritesList.includes(course.id) ? "❤️" : "🤍";
+      html += `<tr class="course-row" data-course-id="${course.id}" onclick="toggleCourseDetail(this, '${course.id}')">
+        <td><span class="favorite-btn" onclick="toggleFavorite(event, '${course.id}')">${heartIcon}</span></td>
+        <td>${course.id}</td>
+        <td>${course.department}</td>
+        <td>${course.catalog_nbr}</td>
+        <td>${course.title}</td>
+        <td>${course.aok}</td>
+        <td>${course.moi}</td>
+        <td>${course.professors || ""}</td>
+      </tr>`;
+    });
+    html += "</table>";
+    resultsDiv.innerHTML = html;
+  }
+
+  // Toggle course detail: expand/collapse detailed info and reviews.
+  function toggleCourseDetail(rowElement, courseId) {
+    if(event.target.classList.contains("favorite-btn")) return;
+    if (rowElement.nextElementSibling && rowElement.nextElementSibling.classList.contains('detail-row')) {
+      rowElement.parentNode.removeChild(rowElement.nextElementSibling);
+      return;
+    }
+    fetch(`/api/course/${courseId}`)
+      .then(response => response.json())
+      .then(courseDetail => {
+        fetch(`/api/reviews?course_id=${courseId}`)
+          .then(response => response.json())
+          .then(reviews => {
+            const detailHtml = renderCourseDetail(courseDetail, reviews);
+            const detailRow = document.createElement("tr");
+            detailRow.classList.add("detail-row");
+            const detailCell = document.createElement("td");
+            detailCell.colSpan = 8;
+            detailCell.innerHTML = detailHtml;
+            detailRow.appendChild(detailCell);
+            rowElement.parentNode.insertBefore(detailRow, rowElement.nextElementSibling);
+          });
+      })
+      .catch(err => {
+        console.error(err);
+        alert("Error fetching course detail.");
+      });
+  }
+
+  // Render detailed course info and reviews.
+  function renderCourseDetail(course, reviews) {
+    let html = `<div>
+      <h4>Course Detail for ${course.title} (ID: ${course.id})</h4>
+      <p><strong>Department:</strong> ${course.department}</p>
+      <p><strong>Catalog #:</strong> ${course.catalog_nbr}</p>
+      <p><strong>AOK:</strong> ${course.aok}</p>
+      <p><strong>MOI:</strong> ${course.moi}</p>
+      <p><strong>Professor(s):</strong> ${course.professors || "N/A"}</p>
+      <hr>
+      <h5>Reviews</h5>`;
+    if (reviews.length === 0) {
+      html += "<p>No reviews yet.</p>";
+    } else {
+      reviews.forEach(review => {
+        html += `<div class="review">
+          <p><strong>Rating:</strong> ${review.rating} / 5</p>
+          <p>${review.review_text || ""}</p>
+          <p><em>${new Date(review.timestamp).toLocaleString()}</em></p>
+        </div>`;
+      });
+    }
+    html += `<hr>
+      <h5>Submit a Review</h5>
+      <form onsubmit="submitReview(event, '${course.id}')">
+        <textarea name="review_text" placeholder="Write your review here..." required style="width:100%; height:80px;"></textarea><br>
+        <input type="number" name="rating" placeholder="Rating (1-5)" min="1" max="5" required>
+        <button type="submit">Submit Review</button>
+      </form>
+    </div>`;
+    return html;
+  }
+
+  // Submit a review.
+  function submitReview(event, courseId) {
+    event.preventDefault();
+    const form = event.target;
+    const reviewText = form.review_text.value;
+    const rating = form.rating.value;
+    const data = {
+      course_id: courseId,
+      review_text: reviewText,
+      rating: parseInt(rating)
+    };
+    fetch("/api/reviews", {
+      method: "POST",
+      headers: {"Content-Type": "application/json"},
+      body: JSON.stringify(data)
+    })
+    .then(response => {
+      if(response.ok) return response.json();
+      throw new Error("Failed to submit review.");
+    })
+    .then(result => {
+      alert("Review submitted successfully!");
+      const row = document.querySelector(`tr.course-row[data-course-id="${courseId}"]`);
+      if (row) {
+        toggleCourseDetail(row, courseId);
+        setTimeout(() => { toggleCourseDetail(row, courseId); }, 500);
+      }
+    })
+    .catch(err => {
+      console.error(err);
+      alert("Error submitting review.");
+    });
+  }
+
+  // Professor autocomplete functionality.
   var professorInput = document.getElementById('professor');
   var suggestionsDiv = document.getElementById('professor-suggestions');
 
@@ -194,7 +368,7 @@
       suggestionsDiv.innerHTML = "";
       return;
     }
-    fetch(`/professors?query=${encodeURIComponent(query)}`)
+    fetch(`/api/professors?query=${encodeURIComponent(query)}`)
       .then(response => response.json())
       .then(data => {
         suggestionsDiv.innerHTML = "";
@@ -215,5 +389,19 @@
         console.error("Error fetching suggestions", err);
       });
   });
+
+  // Attach fetchCourses to the form submit.
+  document.getElementById('courseForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+    document.querySelectorAll("tr.detail-row").forEach(row => row.remove());
+    fetchCourses();
+    fetchFavorites();
+  });
+
+  // Initial load.
+  window.onload = function() {
+    fetchFavorites();
+    fetchCourses();
+  };
 </script>
 {% endblock %}
