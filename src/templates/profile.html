@@ -2,9 +2,24 @@
 {% block title %}Your Profile{% endblock %}
 {% block content %}
   <h1>Your Profile</h1>
+
+  {% if user.profile_pic %}
+  <img src="{{ url_for('static', filename='profile_pics/' + user.profile_pic) }}" width="150" alt="Profile Picture">
+  {% else %}
+    <img src="{{ url_for('static', filename='default_avatar.png') }}" width="150" alt="No Profile Picture">
+  {% endif %}
+
   <p><strong>Name:</strong> {{ user.name }}</p>
   <p><strong>Username:</strong> {{ user.username }}</p>
   <p><strong>Year:</strong> {{ user.year or 'Unknown' }}</p>
   <p><strong>Major:</strong> {{ user.major or 'Unknown' }}</p>
+  <p><strong>Second Major:</strong> {{ user.second_major or 'None' }}</p>
+  <p><strong>Minor:</strong> {{ user.minor or 'None' }}</p>
+  <p><strong>Advisor:</strong> {{ user.advisor_name or 'N/A' }} ({{ user.advisor_email or 'N/A' }})</p>
+  <p><strong>Expected Grad Term:</strong> {{ user.expected_grad_term or 'Unknown' }}</p>
+  <p><strong>Admit Term:</strong> {{ user.admit_term or 'Unknown' }}</p>
+  <p><strong>Cumulative GPA:</strong> {{ user.gpa or 'N/A' }}</p>
+  <p><strong>Total Units:</strong> {{ user.units or 'N/A' }}</p>
+
   <p><a href="{{ url_for('edit_profile') }}">Edit Profile</a></p>
 {% endblock %}

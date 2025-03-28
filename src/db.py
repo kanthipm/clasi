@@ -72,3 +72,26 @@ def query(table: str, filters: dict[str, any] | None = None) -> list[tuple]:
     rows = cursor.fetchall()
     conn.close()
     return rows
+
+def add_columns_if_missing(table: str, columns: dict[str, str]) -> None:
+    """
+    Adds missing columns to an existing SQLite table without dropping it.
+
+    Args:
+      table: Table name.
+      columns: Dict of {column_name: column_type}.
+    """
+    conn = connect_db()
+    cursor = conn.cursor()
+
+    # Get existing column names
+    cursor.execute(f"PRAGMA table_info({table})")
+    existing_columns = [row[1] for row in cursor.fetchall()]
+
+    # Add any columns that don't already exist
+    for col_name, col_type in columns.items():
+        if col_name not in existing_columns:
+            cursor.execute(f"ALTER TABLE {table} ADD COLUMN {col_name} {col_type}")
+
+    conn.commit()
+    conn.close()
