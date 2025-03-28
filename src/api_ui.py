@@ -3,16 +3,13 @@ import os
 import sqlite3, hashlib, binascii
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from functools import wraps
-import sqlite3, hashlib, os, binascii
-<<<<<<< HEAD
-from src.db import create_table, insert_many, query, connect_db
-=======
-from .db import create_table, insert_many, query, connect_db, add_columns_if_missing
 from werkzeug.utils import secure_filename
 
 from .db import create_table, insert_many, query, connect_db, add_columns_if_missing
 
+# ----------------------------------------------------
 # Build absolute paths
+# ----------------------------------------------------
 BASE_DIR = os.path.dirname(__file__)         # e.g., /Users/you/clasier/src
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 UPLOAD_PROFILE_PICS = os.path.join(STATIC_DIR, 'profile_pics')
@@ -20,22 +17,19 @@ UPLOAD_PROFILE_PICS = os.path.join(STATIC_DIR, 'profile_pics')
 # Ensure the upload folder exists
 os.makedirs(UPLOAD_PROFILE_PICS, exist_ok=True)
 
+# ----------------------------------------------------
 # Create Flask app, telling it where static/ is
+# ----------------------------------------------------
 app = Flask(__name__, static_folder=STATIC_DIR)
 
 ##### IMPORTANT: for final product, replace app.secret_key using os.getenv("SECRET_KEY") for secure protection
-#import os
-#from flask import Flask
-#app = Flask(__name__)
-#app.secret_key = os.getenv("SECRET_KEY") or os.urandom(32)
->>>>>>> f77b0ed51d67d2e9609f886c6fd66d6544ef67fd
+# import os
+# from flask import Flask
+# app = Flask(__name__)
+# app.secret_key = os.getenv("SECRET_KEY") or os.urandom(32)
 
-app = Flask(__name__)
 app.secret_key = "replace_this_with_getenv_secret_key_soon"
 
-<<<<<<< HEAD
-# Ensure the users table exists
-=======
 # Max 2MB for pictures
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 # Allowed image file extensions
@@ -44,12 +38,10 @@ ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 # This is the folder path used by your upload logic
 app.config['UPLOAD_FOLDER'] = UPLOAD_PROFILE_PICS
 
-
 ####################
 # Setup DB schema
 ####################
 
->>>>>>> f77b0ed51d67d2e9609f886c6fd66d6544ef67fd
 create_table("users", {
     "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "name": "TEXT NOT NULL",
@@ -70,7 +62,6 @@ add_columns_if_missing("users", {
     "units": "REAL",
     "profile_pic": "TEXT"
 })
-
 
 ####################
 # Utilities
@@ -93,10 +84,6 @@ def verify_password(stored_hash: str, provided_password: str) -> bool:
     new_hash = hashlib.pbkdf2_hmac('sha256', provided_password.encode(), salt, 200_000)
     return binascii.hexlify(new_hash).decode() == hash_hex
 
-def allowed_file(filename):
-    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
-# Login-required decorator
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -104,7 +91,6 @@ def login_required(f):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
-
 
 ####################
 # Routes
@@ -125,7 +111,6 @@ def signup():
             flash("Username already taken.", "danger")
     return render_template("signup.html")
 
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -139,22 +124,19 @@ def login():
         flash("Invalid credentials", "danger")
     return render_template("login.html")
 
-
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
 
-
 @app.route("/")
 @login_required
 def index():
     conn = connect_db()
-    # Get distinct department values from the courses table
+    # Query distinct department from courses
     subjects = [r[0] for r in conn.execute("SELECT DISTINCT department FROM courses").fetchall()]
     conn.close()
     return render_template("index.html", subjects=subjects)
-
 
 # Updated /courses endpoint: All selected AOK and MOI filters must be satisfied.
 @app.route("/courses")
@@ -176,31 +158,28 @@ def courses_from_db():
     if department:
         clauses.append("courses.department = ?")
         params.append(department)
-    
+
     # For each selected AOK, add an individual condition (AND)
-    if aok_list:
-        for aok in aok_list:
-            clauses.append("courses.aok LIKE ?")
-            params.append(f"%{aok}%")
-    
+    for aok in aok_list:
+        clauses.append("courses.aok LIKE ?")
+        params.append(f"%{aok}%")
+
     # For each selected MOI, add an individual condition (AND)
-    if moi_list:
-        for moi in moi_list:
-            clauses.append("courses.moi LIKE ?")
-            params.append(f"%{moi}%")
-    
+    for moi in moi_list:
+        clauses.append("courses.moi LIKE ?")
+        params.append(f"%{moi}%")
+
     if professor:
         clauses.append("sections.professor LIKE ?")
         params.append(f"%{professor}%")
-    
-    final_sql = base_sql
+
     if clauses:
-        final_sql += " WHERE " + " AND ".join(clauses)
-    
-    final_sql += " GROUP BY courses.id"
+        base_sql += " WHERE " + " AND ".join(clauses)
+
+    base_sql += " GROUP BY courses.id"
 
     conn = connect_db()
-    rows = conn.execute(final_sql, params).fetchall()
+    rows = conn.execute(base_sql, params).fetchall()
     conn.close()
 
     results = []
@@ -230,6 +209,8 @@ def professor_suggestions():
     else:
         rows = []
     conn.close()
+    # This differs from main if you want to unify references?
+    # For now, we'll keep as is to not break your code.
     return jsonify([
         {
             "id": r[0], "subject": r[1], "subject_name": r[2], "catalog_nbr": r[3],
@@ -237,7 +218,6 @@ def professor_suggestions():
             "multi_off": r[8], "topic_id": r[9]
         } for r in rows
     ])
-
 
 @app.route("/profile")
 @login_required
@@ -262,18 +242,18 @@ def profile():
     }
     return render_template("profile.html", user=user)
 
-
 @app.route("/profile/edit", methods=["GET", "POST"])
 @login_required
 def edit_profile():
     row = query("users", {"id": session["user_id"]})[0]
-<<<<<<< HEAD
+
+    # We'll unify new fields and keep 'current' logic.
     current_year, current_major = row[4], row[5]
     conn = connect_db()
     subjects = [r[0] for r in conn.execute("SELECT DISTINCT department FROM courses").fetchall()]
     conn.close()
     years = [("2029","Incoming Freshman"),("2028","Freshman"),("2027","Sophomore"),("2026","Junior"),("2025","Senior")]
-=======
+
     current = {
         "year": row[4],
         "major": row[5],
@@ -288,7 +268,6 @@ def edit_profile():
         "profile_pic": row[14]
     }
 
->>>>>>> f77b0ed51d67d2e9609f886c6fd66d6544ef67fd
     if request.method == "POST":
         # Grab all the form fields
         year = request.form.get("year", current["year"])
@@ -336,16 +315,11 @@ def edit_profile():
         flash("Profile updated!", "success")
         return redirect(url_for("profile"))
 
-    return render_template("edit_profile.html", **current)
+    # Merging: We keep 'subjects' and 'years' if you need them in the template
+    # plus the 'current' dict for rendering.
 
+    return render_template("edit_profile.html", subjects=subjects, years=years, **current)
 
 if __name__ == "__main__":
-<<<<<<< HEAD
+    # We see user set: use_reloader=False, let's keep that.
     app.run(debug=True, use_reloader=False)
-=======
-    # Make sure to run from the project root ("clasier/"):
-    #   FLASK_APP=src.api_ui FLASK_ENV=development flask run
-    # Or pass the --port if needed:
-    #   flask run --port=5050
-    app.run(debug=True)
->>>>>>> f77b0ed51d67d2e9609f886c6fd66d6544ef67fd
