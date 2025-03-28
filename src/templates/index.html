@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}CLASI - Course Listings{% endblock %}
 {% block content %}
-<!-- Pass current_user_id from the server -->
 <script>
   const currentUserId = {{ current_user_id }};
 </script>
@@ -158,36 +157,19 @@
 </div>
 
 <script>
-  let favoritesList = []; // Holds favorited course IDs
+  let favoritesList = [];
 
-  // Immediately update the heart icon when toggling favorites.
+  // Immediately update heart icon on toggle.
   function toggleFavorite(event, courseId) {
     event.stopPropagation();
     let heartSpan = event.target;
-    let currentlyFavorited = heartSpan.textContent.trim() === "❤️";
-    if (currentlyFavorited) {
-      heartSpan.textContent = "🤍"; // immediately change to white
+    let isFavorited = heartSpan.textContent.trim() === "❤️";
+    heartSpan.textContent = isFavorited ? "🤍" : "❤️";
+    if (isFavorited) {
       fetch("/api/favorites", {
         method: "DELETE",
         headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({course_id: courseId})
-      })
-      .then(response => response.json())
-      .then(result => {
-        fetchFavorites();
-        fetchCourses(); // refresh table if needed
-      })
-      .catch(err => {
-        console.error(err);
-        alert("Error removing favorite.");
-        heartSpan.textContent = "❤️"; // revert on error
-      });
-    } else {
-      heartSpan.textContent = "❤️"; // immediately change to red
-      fetch("/api/favorites", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({course_id: courseId})
+        body: JSON.stringify({ course_id: courseId })
       })
       .then(response => response.json())
       .then(result => {
@@ -196,13 +178,27 @@
       })
       .catch(err => {
         console.error(err);
-        alert("Error adding favorite.");
+        heartSpan.textContent = "❤️"; // revert on error
+      });
+    } else {
+      fetch("/api/favorites", {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ course_id: courseId })
+      })
+      .then(response => response.json())
+      .then(result => {
+        fetchFavorites();
+        fetchCourses();
+      })
+      .catch(err => {
+        console.error(err);
         heartSpan.textContent = "🤍"; // revert on error
       });
     }
   }
 
-  // Fetch favorites for the current user.
+  // Fetch favorites for current user.
   function fetchFavorites() {
     fetch("/api/favorites")
       .then(response => response.json())
@@ -212,7 +208,7 @@
       .catch(err => console.error("Error fetching favorites:", err));
   }
 
-  // Fetch courses using /api/courses.
+  // Fetch courses from /api/courses.
   function fetchCourses() {
     var department = document.getElementById('department').value;
     var professor = document.getElementById('professor').value;
@@ -221,8 +217,8 @@
     var moiCheckboxes = document.querySelectorAll('input[name="moi"]:checked');
     var moiValues = Array.from(moiCheckboxes).map(cb => cb.value);
     var params = new URLSearchParams();
-    if (department) params.append("department", department);
-    if (professor) params.append("professor", professor);
+    if(department) params.append("department", department);
+    if(professor) params.append("professor", professor);
     aokValues.forEach(val => params.append("aok", val));
     moiValues.forEach(val => params.append("moi", val));
     
@@ -237,10 +233,10 @@
       });
   }
 
-  // Render the course table with clickable rows and heart icons.
+  // Render course table with clickable rows and heart icons.
   function renderCourseTable(courses) {
     const resultsDiv = document.getElementById('results');
-    if (courses.error) {
+    if(courses.error) {
       resultsDiv.innerHTML = `<p>Error: ${courses.error}</p>`;
       return;
     }
@@ -262,10 +258,10 @@
     resultsDiv.innerHTML = html;
   }
 
-  // Toggle course detail: expand/collapse detailed info and reviews.
+  // Toggle course detail: expand/collapse detail row.
   function toggleCourseDetail(rowElement, courseId) {
     if(event.target.classList.contains("favorite-btn")) return;
-    if (rowElement.nextElementSibling && rowElement.nextElementSibling.classList.contains('detail-row')) {
+    if(rowElement.nextElementSibling && rowElement.nextElementSibling.classList.contains('detail-row')) {
       rowElement.parentNode.removeChild(rowElement.nextElementSibling);
       return;
     }
@@ -291,7 +287,7 @@
       });
   }
 
-  // Render detailed course info and reviews.
+  // Render course detail including reviews and review form.
   function renderCourseDetail(course, reviews) {
     let html = `<div>
       <h4>Course Detail for ${course.title} (ID: ${course.id})</h4>
@@ -302,7 +298,7 @@
       <p><strong>Professor(s):</strong> ${course.professors || "N/A"}</p>
       <hr>
       <h5>Reviews</h5>`;
-    if (reviews.length === 0) {
+    if(reviews.length === 0) {
       html += "<p>No reviews yet.</p>";
     } else {
       reviews.forEach(review => {
@@ -347,7 +343,7 @@
     .then(result => {
       alert("Review submitted successfully!");
       const row = document.querySelector(`tr.course-row[data-course-id="${courseId}"]`);
-      if (row) {
+      if(row) {
         toggleCourseDetail(row, courseId);
         setTimeout(() => { toggleCourseDetail(row, courseId); }, 500);
       }
@@ -390,7 +386,7 @@
       });
   });
 
-  // Attach fetchCourses to the form submit.
+  // Attach fetchCourses to form submit.
   document.getElementById('courseForm').addEventListener('submit', function(e) {
     e.preventDefault();
     document.querySelectorAll("tr.detail-row").forEach(row => row.remove());

@@ -1,10 +1,28 @@
+import os
+import sqlite3, hashlib, binascii, datetime
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from functools import wraps
-import sqlite3, hashlib, os, binascii, datetime
 from src.db import create_table, insert_many, query, connect_db
+from werkzeug.utils import secure_filename
 
-app = Flask(__name__)
+# ----------------------------------------------------
+# Build absolute paths
+# ----------------------------------------------------
+BASE_DIR = os.path.dirname(__file__)         # e.g., /Users/you/clasier/src
+STATIC_DIR = os.path.join(BASE_DIR, 'static')
+UPLOAD_PROFILE_PICS = os.path.join(STATIC_DIR, 'profile_pics')
+
+# Ensure the upload folder exists
+os.makedirs(UPLOAD_PROFILE_PICS, exist_ok=True)
+
+# ----------------------------------------------------
+# Create Flask app, telling it where static/ is
+# ----------------------------------------------------
+app = Flask(__name__, static_folder=STATIC_DIR)
 app.secret_key = "replace_this_with_getenv_secret_key_soon"
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB for images
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+app.config['UPLOAD_FOLDER'] = UPLOAD_PROFILE_PICS
 
 # ---------------------------
 # Database Table Setup
@@ -37,8 +55,11 @@ create_table("favorites", {
 })
 
 # ---------------------------
-# Password Utilities
+# Utilities
 # ---------------------------
+def allowed_file(filename: str) -> bool:
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
 def hash_password(password: str) -> str:
     salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 200_000)
@@ -113,13 +134,18 @@ def index():
 @app.route("/profile", endpoint="profile")
 @login_required
 def profile():
-    row = query("users", {"id": session["user_id"]})[0]
+    rows = query("users", {"id": session.get("user_id")})
+    if not rows:
+        # If no user found (stale session), redirect to login.
+        return redirect(url_for("login"))
+    row = rows[0]
     user = {
         "id": row[0],
         "name": row[1],
         "username": row[2],
         "year": row[4],
         "major": row[5]
+        # Additional fields (profile_pic, etc.) can be added if present.
     }
     return render_template("profile.html", user=user)
 
@@ -156,13 +182,6 @@ def api_courses():
     base_sql = """
     SELECT courses.*, GROUP_CONCAT(DISTINCT sections.professor) as professors
     FROM courses
-    LEFT JOIN sections ON courses.id = sections.professor = sections.professor
-    LEFT JOIN sections ON courses.id = sections.crse_id
-    """
-    # (Note: the first LEFT JOIN is redundant; we keep only one join)
-    base_sql = """
-    SELECT courses.*, GROUP_CONCAT(DISTINCT sections.professor) as professors
-    FROM courses
     LEFT JOIN sections ON courses.id = sections.crse_id
     """
     clauses = []
@@ -170,23 +189,20 @@ def api_courses():
     if department:
         clauses.append("courses.department = ?")
         params.append(department)
-    if aok_list:
-        for aok in aok_list:
-            clauses.append("courses.aok LIKE ?")
-            params.append(f"%{aok}%")
-    if moi_list:
-        for moi in moi_list:
-            clauses.append("courses.moi LIKE ?")
-            params.append(f"%{moi}%")
+    for aok in aok_list:
+        clauses.append("courses.aok LIKE ?")
+        params.append(f"%{aok}%")
+    for moi in moi_list:
+        clauses.append("courses.moi LIKE ?")
+        params.append(f"%{moi}%")
     if professor:
         clauses.append("sections.professor LIKE ?")
         params.append(f"%{professor}%")
-    final_sql = base_sql
     if clauses:
-        final_sql += " WHERE " + " AND ".join(clauses)
-    final_sql += " GROUP BY courses.id"
+        base_sql += " WHERE " + " AND ".join(clauses)
+    base_sql += " GROUP BY courses.id"
     conn = connect_db()
-    rows = conn.execute(final_sql, params).fetchall()
+    rows = conn.execute(base_sql, params).fetchall()
     conn.close()
     results = []
     for r in rows:
@@ -254,7 +270,7 @@ def api_professors():
     suggestions = [r[0] for r in rows if r[0]]
     return jsonify(suggestions)
 
-# 5. /api/reviews - GET reviews and POST a new review.
+# 5. /api/reviews - Get reviews and submit a new review.
 @app.route("/api/reviews", methods=["GET", "POST"])
 def api_reviews():
     if request.method == "POST":
