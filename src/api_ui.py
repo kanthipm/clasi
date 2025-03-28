@@ -1,4 +1,3 @@
-# final updated code with static in src folder
 import os
 import sqlite3, hashlib, binascii
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
@@ -7,30 +6,18 @@ from werkzeug.utils import secure_filename
 
 from .db import create_table, insert_many, query, connect_db, add_columns_if_missing
 
-# Build absolute paths
-BASE_DIR = os.path.dirname(__file__)         # e.g., /Users/you/clasier/src
+# Paths
+BASE_DIR = os.path.dirname(__file__)
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 UPLOAD_PROFILE_PICS = os.path.join(STATIC_DIR, 'profile_pics')
-
-# Ensure the upload folder exists
 os.makedirs(UPLOAD_PROFILE_PICS, exist_ok=True)
 
-# Create Flask app, telling it where static/ is
 app = Flask(__name__, static_folder=STATIC_DIR)
 app.secret_key = "replace_this_with_getenv_secret_key_soon"
 
-# Max 2MB for pictures
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
-# Allowed image file extensions
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
-
-# This is the folder path used by your upload logic
 app.config['UPLOAD_FOLDER'] = UPLOAD_PROFILE_PICS
-
-
-####################
-# Setup DB schema
-####################
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 create_table("users", {
     "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
@@ -53,20 +40,13 @@ add_columns_if_missing("users", {
     "profile_pic": "TEXT"
 })
 
-
-####################
-# Utilities
-####################
-
-def allowed_file(filename: str) -> bool:
+def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
-
 
 def hash_password(password: str) -> str:
     salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 200_000)
     return f"{binascii.hexlify(salt).decode()}:{binascii.hexlify(dk).decode()}"
-
 
 def verify_password(stored_hash: str, provided_password: str) -> bool:
     try:
@@ -77,7 +57,6 @@ def verify_password(stored_hash: str, provided_password: str) -> bool:
     new_hash = hashlib.pbkdf2_hmac('sha256', provided_password.encode(), salt, 200_000)
     return binascii.hexlify(new_hash).decode() == hash_hex
 
-
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
@@ -85,11 +64,6 @@ def login_required(f):
             return redirect(url_for("login"))
         return f(*args, **kwargs)
     return decorated
-
-
-####################
-# Routes
-####################
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
@@ -106,7 +80,6 @@ def signup():
             flash("Username already taken.", "danger")
     return render_template("signup.html")
 
-
 @app.route("/login", methods=["GET", "POST"])
 def login():
     if request.method == "POST":
@@ -120,83 +93,100 @@ def login():
         flash("Invalid credentials", "danger")
     return render_template("login.html")
 
-
 @app.route("/logout")
 def logout():
     session.clear()
     return redirect(url_for("login"))
 
-
 @app.route("/")
 @login_required
 def index():
     conn = connect_db()
-    subjects = [r[0] for r in conn.execute("SELECT DISTINCT subject FROM courses").fetchall()]
+    subjects = [r[0] for r in conn.execute("SELECT DISTINCT department FROM courses").fetchall()]
     conn.close()
     return render_template("index.html", subjects=subjects)
 
-
 @app.route("/courses")
 def courses_from_db():
-    subject = request.args.get("subject", "")
-    sql = "SELECT * FROM courses" + (" WHERE subject = ?" if subject else "")
-    params = [subject] if subject else []
+    department = request.args.get("department", "").strip()
+    professor = request.args.get("professor", "").strip()
+    aok_list = request.args.getlist("aok")
+    moi_list = request.args.getlist("moi")
+
+    base_sql = """
+    SELECT courses.*, GROUP_CONCAT(DISTINCT sections.professor) as professors
+    FROM courses
+    LEFT JOIN sections ON courses.id = sections.crse_id
+    """
+    clauses, params = [], []
+
+    if department:
+        clauses.append("courses.department = ?")
+        params.append(department)
+
+    for aok in aok_list:
+        clauses.append("courses.aok LIKE ?")
+        params.append(f"%{aok}%")
+
+    for moi in moi_list:
+        clauses.append("courses.moi LIKE ?")
+        params.append(f"%{moi}%")
+
+    if professor:
+        clauses.append("sections.professor LIKE ?")
+        params.append(f"%{professor}%")
+
+    if clauses:
+        base_sql += " WHERE " + " AND ".join(clauses)
+    base_sql += " GROUP BY courses.id"
+
     conn = connect_db()
-    rows = conn.execute(sql, params).fetchall()
+    rows = conn.execute(base_sql, params).fetchall()
     conn.close()
+
     return jsonify([
         {
-            "id": r[0], "subject": r[1], "subject_name": r[2], "catalog_nbr": r[3],
-            "title": r[4], "term_code": r[5], "term_desc": r[6], "effdt": r[7],
-            "multi_off": r[8], "topic_id": r[9]
+            "id": r[0], "department": r[1], "catalog_nbr": r[2], "title": r[3],
+            "topic_id": r[4], "aok": r[5], "moi": r[6], "professors": r[7]
         } for r in rows
     ])
 
+@app.route("/professors")
+def professor_suggestions():
+    query_text = request.args.get("query", "").strip()
+    conn = connect_db()
+    rows = []
+    if query_text:
+        rows = conn.execute(
+            "SELECT DISTINCT professor FROM sections WHERE professor LIKE ? ORDER BY professor",
+            (f"%{query_text}%",)
+        ).fetchall()
+    conn.close()
+    return jsonify([r[0] for r in rows if r[0]])
 
 @app.route("/profile")
 @login_required
 def profile():
     row = query("users", {"id": session["user_id"]})[0]
     user = {
-        "id": row[0],
-        "name": row[1],
-        "username": row[2],
-        # row[3] is password_hash
-        "year": row[4],
-        "major": row[5],
-        "second_major": row[6],
-        "minor": row[7],
-        "advisor_name": row[8],
-        "advisor_email": row[9],
-        "expected_grad_term": row[10],
-        "admit_term": row[11],
-        "gpa": row[12],
-        "units": row[13],
+        "id": row[0], "name": row[1], "username": row[2], "year": row[4], "major": row[5],
+        "second_major": row[6], "minor": row[7], "advisor_name": row[8], "advisor_email": row[9],
+        "expected_grad_term": row[10], "admit_term": row[11], "gpa": row[12], "units": row[13],
         "profile_pic": row[14]
     }
     return render_template("profile.html", user=user)
-
 
 @app.route("/profile/edit", methods=["GET", "POST"])
 @login_required
 def edit_profile():
     row = query("users", {"id": session["user_id"]})[0]
     current = {
-        "year": row[4],
-        "major": row[5],
-        "second_major": row[6],
-        "minor": row[7],
-        "advisor_name": row[8],
-        "advisor_email": row[9],
-        "expected_grad_term": row[10],
-        "admit_term": row[11],
-        "gpa": row[12],
-        "units": row[13],
-        "profile_pic": row[14]
+        "year": row[4], "major": row[5], "second_major": row[6], "minor": row[7],
+        "advisor_name": row[8], "advisor_email": row[9], "expected_grad_term": row[10],
+        "admit_term": row[11], "gpa": row[12], "units": row[13], "profile_pic": row[14]
     }
 
     if request.method == "POST":
-        # Grab all the form fields
         year = request.form.get("year", current["year"])
         major = request.form.get("major", current["major"])
         second_major = request.form.get("second_major", current["second_major"])
@@ -208,46 +198,26 @@ def edit_profile():
         gpa = request.form.get("gpa", current["gpa"])
         units = request.form.get("units", current["units"])
 
-        # Handle file upload if provided
         file = request.files.get("profile_pic")
-        filename = current["profile_pic"]  # default to existing
+        filename = current["profile_pic"]
         if file and allowed_file(file.filename):
             safe_filename = secure_filename(file.filename)
             filename = f"{session['user_id']}_{safe_filename}"
             file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
             file.save(file_path)
 
-            print("Saving profile pic and fields...")
-            print("Received file:", file.filename if file else "No file")
-            print("Final saved filename:", filename)
-            print("Saved to:", file_path)
-
-        # Update DB
         conn = connect_db()
         conn.execute("""
-            UPDATE users
-            SET year=?, major=?, second_major=?, minor=?, advisor_name=?, advisor_email=?,
-                expected_grad_term=?, admit_term=?, gpa=?, units=?, profile_pic=?
-            WHERE id=?
-        """, (
-            year, major, second_major, minor,
-            advisor_name, advisor_email,
-            expected_grad_term, admit_term,
-            gpa, units,
-            filename, session["user_id"]
-        ))
+            UPDATE users SET year=?, major=?, second_major=?, minor=?, advisor_name=?, advisor_email=?,
+            expected_grad_term=?, admit_term=?, gpa=?, units=?, profile_pic=? WHERE id=?
+        """, (year, major, second_major, minor, advisor_name, advisor_email,
+              expected_grad_term, admit_term, gpa, units, filename, session["user_id"]))
         conn.commit()
         conn.close()
-
         flash("Profile updated!", "success")
         return redirect(url_for("profile"))
 
     return render_template("edit_profile.html", **current)
 
-
 if __name__ == "__main__":
-    # Make sure to run from the project root ("clasier/"):
-    #   FLASK_APP=src.api_ui FLASK_ENV=development flask run
-    # Or pass the --port if needed:
-    #   flask run --port=5050
     app.run(debug=True)
