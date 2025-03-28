@@ -3,6 +3,11 @@ import os
 import sqlite3, hashlib, binascii
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from functools import wraps
+import sqlite3, hashlib, os, binascii
+<<<<<<< HEAD
+from src.db import create_table, insert_many, query, connect_db
+=======
+from .db import create_table, insert_many, query, connect_db, add_columns_if_missing
 from werkzeug.utils import secure_filename
 
 from .db import create_table, insert_many, query, connect_db, add_columns_if_missing
@@ -19,6 +24,9 @@ os.makedirs(UPLOAD_PROFILE_PICS, exist_ok=True)
 app = Flask(__name__, static_folder=STATIC_DIR)
 app.secret_key = "replace_this_with_getenv_secret_key_soon"
 
+<<<<<<< HEAD
+# Ensure the users table exists
+=======
 # Max 2MB for pictures
 app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024
 # Allowed image file extensions
@@ -32,6 +40,7 @@ app.config['UPLOAD_FOLDER'] = UPLOAD_PROFILE_PICS
 # Setup DB schema
 ####################
 
+>>>>>>> f77b0ed51d67d2e9609f886c6fd66d6544ef67fd
 create_table("users", {
     "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
     "name": "TEXT NOT NULL",
@@ -61,12 +70,10 @@ add_columns_if_missing("users", {
 def allowed_file(filename: str) -> bool:
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-
 def hash_password(password: str) -> str:
     salt = os.urandom(16)
     dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 200_000)
     return f"{binascii.hexlify(salt).decode()}:{binascii.hexlify(dk).decode()}"
-
 
 def verify_password(stored_hash: str, provided_password: str) -> bool:
     try:
@@ -76,7 +83,6 @@ def verify_password(stored_hash: str, provided_password: str) -> bool:
     salt = binascii.unhexlify(salt_hex)
     new_hash = hashlib.pbkdf2_hmac('sha256', provided_password.encode(), salt, 200_000)
     return binascii.hexlify(new_hash).decode() == hash_hex
-
 
 def login_required(f):
     @wraps(f)
@@ -131,18 +137,85 @@ def logout():
 @login_required
 def index():
     conn = connect_db()
-    subjects = [r[0] for r in conn.execute("SELECT DISTINCT subject FROM courses").fetchall()]
+    # Get distinct department values from the courses table
+    subjects = [r[0] for r in conn.execute("SELECT DISTINCT department FROM courses").fetchall()]
     conn.close()
     return render_template("index.html", subjects=subjects)
 
 
+# Updated /courses endpoint: All selected AOK and MOI filters must be satisfied.
 @app.route("/courses")
 def courses_from_db():
-    subject = request.args.get("subject", "")
-    sql = "SELECT * FROM courses" + (" WHERE subject = ?" if subject else "")
-    params = [subject] if subject else []
+    # Get query parameters
+    department = request.args.get("department", "").strip()
+    professor = request.args.get("professor", "").strip()
+    aok_list = request.args.getlist("aok")
+    moi_list = request.args.getlist("moi")
+
+    base_sql = """
+    SELECT courses.*, GROUP_CONCAT(DISTINCT sections.professor) as professors
+    FROM courses
+    LEFT JOIN sections ON courses.id = sections.crse_id
+    """
+    clauses = []
+    params = []
+
+    if department:
+        clauses.append("courses.department = ?")
+        params.append(department)
+    
+    # For each selected AOK, add an individual condition (AND)
+    if aok_list:
+        for aok in aok_list:
+            clauses.append("courses.aok LIKE ?")
+            params.append(f"%{aok}%")
+    
+    # For each selected MOI, add an individual condition (AND)
+    if moi_list:
+        for moi in moi_list:
+            clauses.append("courses.moi LIKE ?")
+            params.append(f"%{moi}%")
+    
+    if professor:
+        clauses.append("sections.professor LIKE ?")
+        params.append(f"%{professor}%")
+    
+    final_sql = base_sql
+    if clauses:
+        final_sql += " WHERE " + " AND ".join(clauses)
+    
+    final_sql += " GROUP BY courses.id"
+
     conn = connect_db()
-    rows = conn.execute(sql, params).fetchall()
+    rows = conn.execute(final_sql, params).fetchall()
+    conn.close()
+
+    results = []
+    for r in rows:
+        results.append({
+            "id": r[0],
+            "department": r[1],
+            "catalog_nbr": r[2],
+            "title": r[3],
+            "topic_id": r[4],
+            "aok": r[5],
+            "moi": r[6],
+            "professors": r[7]
+        })
+
+    return jsonify(results)
+
+# New endpoint for professor name suggestions (autocomplete)
+@app.route("/professors")
+def professor_suggestions():
+    query_text = request.args.get("query", "").strip()
+    conn = connect_db()
+    if query_text:
+        sql = "SELECT DISTINCT professor FROM sections WHERE professor LIKE ? ORDER BY professor"
+        param = (f"%{query_text}%",)
+        rows = conn.execute(sql, param).fetchall()
+    else:
+        rows = []
     conn.close()
     return jsonify([
         {
@@ -181,6 +254,13 @@ def profile():
 @login_required
 def edit_profile():
     row = query("users", {"id": session["user_id"]})[0]
+<<<<<<< HEAD
+    current_year, current_major = row[4], row[5]
+    conn = connect_db()
+    subjects = [r[0] for r in conn.execute("SELECT DISTINCT department FROM courses").fetchall()]
+    conn.close()
+    years = [("2029","Incoming Freshman"),("2028","Freshman"),("2027","Sophomore"),("2026","Junior"),("2025","Senior")]
+=======
     current = {
         "year": row[4],
         "major": row[5],
@@ -195,6 +275,7 @@ def edit_profile():
         "profile_pic": row[14]
     }
 
+>>>>>>> f77b0ed51d67d2e9609f886c6fd66d6544ef67fd
     if request.method == "POST":
         # Grab all the form fields
         year = request.form.get("year", current["year"])
@@ -250,4 +331,8 @@ if __name__ == "__main__":
     #   FLASK_APP=src.api_ui FLASK_ENV=development flask run
     # Or pass the --port if needed:
     #   flask run --port=5050
+<<<<<<< HEAD
+    app.run(debug=True, use_reloader=False)
+=======
     app.run(debug=True)
+>>>>>>> f77b0ed51d67d2e9609f886c6fd66d6544ef67fd
