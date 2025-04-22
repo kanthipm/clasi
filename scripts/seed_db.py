@@ -1,5 +1,6 @@
 import os
 import sys
+from datetime import datetime
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -54,6 +55,20 @@ def create_tables():
         "component": "TEXT",
         "PRIMARY KEY (crse_id, strm, section)": ""
     })
+
+    create_table("reviews", {
+        "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+        "user_id": "TEXT",
+        "course_id": "TEXT",
+        "review_text": "TEXT",
+        "timestamp": "TEXT"
+    })
+
+    create_table("users", {
+        "username": "TEXT PRIMARY KEY",
+        "password_hash": "TEXT"
+    })
+
 
 def seed_data():
     insert_many("departments", [
@@ -120,6 +135,20 @@ def seed_data():
 
     insert_many("course_offerings", offerings)
     insert_many("sections", sections)
+    insert_many("reviews", [
+        {
+            "user_id": "kpm42",
+            "course_id": "CSC101",
+            "review_text": "Great intro course with helpful projects!",
+            "timestamp": datetime.now().isoformat()
+        },
+        {
+            "user_id": "jhp23",
+            "course_id": "BIO201",
+            "review_text": "Challenging but super rewarding.",
+            "timestamp": datetime.now().isoformat()
+        }
+    ])
 
 def main():
     reset_db()

@@ -26,7 +26,7 @@ def main():
         .get("value", [])
     )
     rows = [
-        {"code": d["code"], "desc": d["desc"]}
+        {"code": d["code"], "name": d["desc"]}
         for d in items
         if d.get("code") and d.get("desc")
     ]
