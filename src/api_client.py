@@ -96,3 +96,15 @@ def get_course_synopsis(strm: str, subject: str, catalog_nbr: str, session_code:
         return response.json()
     else:
         return {"error": response.status_code, "message": response.text}
+    
+def get_course_details(crse_id, crse_offer_nbr):
+    url = f"{BASE_URL}/courses/crse_id/{crse_id}/crse_offer_nbr/{crse_offer_nbr}"
+    params = {"access_token": API_KEY}
+    try:
+        resp = requests.get(url, params=params, timeout=10)
+        resp.raise_for_status()
+        return resp.json()
+    except requests.RequestException as e:
+        print(f"⚠️  metadata error for {crse_id}@{crse_offer_nbr}: {e}")
+        return {}
+

@@ -106,10 +106,10 @@
 
 <div class="container">
   <form id="courseForm" class="search-form">
-    <!-- Department Dropdown -->
+    <!-- Subject Dropdown -->
     <div class="form-group">
-      <label for="department">Select Subject:</label>
-      <select id="department" name="department">
+      <label for="subject">Select Subject:</label>
+      <select id="subject" name="subject">
         <option value="">-- Choose a Subject --</option>
         {% for subj in subjects %}
           <option value="{{ subj }}">{{ subj }}</option>
@@ -210,14 +210,14 @@
 
   // Fetch courses from /api/courses.
   function fetchCourses() {
-    var department = document.getElementById('department').value;
+    var subject = document.getElementById('subject').value;
     var professor = document.getElementById('professor').value;
     var aokCheckboxes = document.querySelectorAll('input[name="aok"]:checked');
     var aokValues = Array.from(aokCheckboxes).map(cb => cb.value);
     var moiCheckboxes = document.querySelectorAll('input[name="moi"]:checked');
     var moiValues = Array.from(moiCheckboxes).map(cb => cb.value);
     var params = new URLSearchParams();
-    if(department) params.append("department", department);
+    if(subject) params.append("subject", subject);
     if(professor) params.append("professor", professor);
     aokValues.forEach(val => params.append("aok", val));
     moiValues.forEach(val => params.append("moi", val));
@@ -240,13 +240,13 @@
       resultsDiv.innerHTML = `<p>Error: ${courses.error}</p>`;
       return;
     }
-    let html = "<table><tr><th></th><th>ID</th><th>Department</th><th>Catalog #</th><th>Title</th><th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>";
+    let html = "<table><tr><th></th><th>ID</th><th>Subject</th><th>Catalog #</th><th>Title</th><th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>";
     courses.forEach(course => {
       let heartIcon = favoritesList.includes(course.id) ? "❤️" : "🤍";
       html += `<tr class="course-row" data-course-id="${course.id}" onclick="toggleCourseDetail(this, '${course.id}')">
         <td><span class="favorite-btn" onclick="toggleFavorite(event, '${course.id}')">${heartIcon}</span></td>
         <td>${course.id}</td>
-        <td>${course.department}</td>
+        <td>${course.subject}</td>
         <td>${course.catalog_nbr}</td>
         <td>${course.title}</td>
         <td>${course.aok}</td>
@@ -291,7 +291,7 @@
   function renderCourseDetail(course, reviews) {
     let html = `<div>
       <h4>Course Detail for ${course.title} (ID: ${course.id})</h4>
-      <p><strong>Department:</strong> ${course.department}</p>
+      <p><strong>Subject:</strong> ${course.subject}</p>
       <p><strong>Catalog #:</strong> ${course.catalog_nbr}</p>
       <p><strong>AOK:</strong> ${course.aok}</p>
       <p><strong>MOI:</strong> ${course.moi}</p>
