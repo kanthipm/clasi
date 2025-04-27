@@ -310,7 +310,7 @@ def api_reviews():
         user_id = session.get("user_id")
         review_text = data.get("review_text")
         rating = data.get("rating")
-        timestamp = datetime.datetime.utcnow().isoformat()
+        timestamp = datetime.datetime.now().isoformat()
         if not course_id or not user_id:
             return jsonify({"error": "course_id and user_id are required"}), 400
         conn = connect_db()

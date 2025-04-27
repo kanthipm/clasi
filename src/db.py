@@ -35,11 +35,14 @@ def insert_many(table: str, rows: list[dict[str, any]]) -> int:
     """
     if not rows:
         return 0
-
-    cols = list(rows[0].keys())
+    
+    cols = sorted({k for row in rows for k in row})
     placeholders = ", ".join("?" for _ in cols)
-    sql = f"INSERT OR REPLACE INTO {table} ({', '.join(cols)}) VALUES ({placeholders})"
-    values = [tuple(row[col] for col in cols) for row in rows]
+    sql = f'INSERT OR REPLACE INTO {table} ({", ".join(cols)}) VALUES ({placeholders})'
+    values = [
+        tuple(row.get(col) for col in cols)    # use .get -> None for missing
+        for row in rows
+    ]
 
     conn = connect_db()
     conn.executemany(sql, values)

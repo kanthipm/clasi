@@ -47,6 +47,18 @@ def sql_safe(name: str) -> str:
     col = re.sub(r'\W+', '_', name.strip().lower())        # replace non-word chars
     return f"_{col}" if col and col[0].isdigit() else col
 
+# ───── safe nested lookup ───────────────────────────────────
+def _dig(node, *keys):
+    """
+    Traverse `node` (a dict or None) through the given key path.
+    If any level is None/missing, return None instead of raising.
+    """
+    for k in keys:
+        if not isinstance(node, dict):
+            return None
+        node = node.get(k)
+    return node
+
 # --------------------
 # Create Tables (fresh)
 # --------------------
@@ -109,6 +121,8 @@ def flush():
 try:
     for idx, subj in enumerate(subjects, start=1):
         code = subj.get("code")
+        if "_" in code:
+            continue                 # jump to the next subject
         print(f"\n[{idx}/{len(subjects)}] Subject: {code}")
         # fetch first course
         resp = get_course_listings(code)
@@ -121,123 +135,116 @@ try:
         if not clist:
             print(f"⚠️ Empty course list for {code}")
             continue
-        course = clist[0]
-        cid = course.get("crse_id")
-        if not cid or cid in courses_seen:
-            print("⏭ Skipping invalid or duplicate course")
-            continue
-        # record course
-        buffers["courses"].append({
-            "crse_id": cid,
-            "subject": code,
-            "course_title_long": course.get("course_title_long"),
-            "catalog_nbr": course.get("catalog_nbr"),
-            "ssr_crse_typoff_cd": course.get("ssr_crse_typoff_cd"),
-        })
-        courses_seen.add(cid)
-        #print(f" ✔ Course: {cid}")
-
-        # fetch offerings for the selected term only
-        data = get_course_offering_metadata(term_code, cid) or {}
-        sr = data.get("ssr_get_classes_resp", {}).get("search_result", {})
-        subjects_block = sr.get("subjects") or {}
-        items = subjects_block.get("subject")
-        if isinstance(items, dict): items = [items]
-        entries = items or []
-        if not entries:
-            print(f" ⚠️ No sections for {cid} in {term_name}")
-        else:
-            lst = entries[0]
-            off_nbr = lst.get("crse_offer_nbr")
-            off_id = f"{cid}_{off_nbr}"
-            buffers["offerings"].append({
-                "offering_id": off_id,
+        for course in clist:
+            cid = course.get("crse_id")
+            if not cid or cid in courses_seen:
+                continue
+            # record course
+            buffers["courses"].append({
                 "crse_id": cid,
-                "descrlong": lst.get("ssr_descrlong"),
-                "consent_lov_descr": lst.get("consent_lov_descr"),
-                "acad_career": lst.get("acad_career"),
-                "ssr_component": lst.get("ssr_component"),
+                "subject": code,
+                "course_title_long": course.get("course_title_long"),
+                "catalog_nbr": course.get("catalog_nbr"),
+                "ssr_crse_typoff_cd": course.get("ssr_crse_typoff_cd"),
             })
+            courses_seen.add(cid)
+            #print(f" ✔ Course: {cid}")
+
+            # fetch offerings for the selected term only
+            data = get_course_offering_metadata(term_code, cid) or {}
+        
+            sr = data.get("ssr_get_classes_resp", {}).get("search_result", {})
+            subjects_block = sr.get("subjects") or {}
+            items = subjects_block.get("subject")
+            if isinstance(items, dict): items = [items]
+            entries = items or []
+            if entries:
+                lst = entries[0]
+                off_nbr = lst.get("crse_offer_nbr")
+                off_id = f"{cid}_{off_nbr}"
+                buffers["offerings"].append({
+                    "offering_id": off_id,
+                    "crse_id": cid,
+                    "descrlong": lst.get("ssr_descrlong"),
+                    "consent_lov_descr": lst.get("consent_lov_descr"),
+                    "acad_career": lst.get("acad_career"),
+                    "ssr_component": lst.get("ssr_component"),
+                })
 
             # ──────────────────────────────────────────────────────────────
             # 1) attributes that live in the class-listing (unchanged)
             # 2) attributes that live in the course-details endpoint
             #    → guarantees we pick up *every* crse_attr_lov_descr
             # ──────────────────────────────────────────────────────────────
-            amap = defaultdict(list)
-            src_attrs = lst.get("course_attributes", []) or []
+                amap = defaultdict(list)
+                src_attrs = lst.get("course_attributes", []) or []
 
             # grab details for this exact offering
-            try:
-                details = get_course_details(cid, off_nbr) or {}
-                src_attrs += (
-                    details.get("ssr_get_course_offering_resp", {})
-                           .get("course_offering_result", {})
-                           .get("course_offering", {})
-                           .get("course_attributes", {})
-                           .get("course_attribute", [])
-                )
-            except Exception as e:
-                print(f"    ⚠️  details call failed for {cid}/{off_nbr}: {e}")
+                try:
+                    details = get_course_details(cid, off_nbr) or {}
+                    src_attrs += (
+                        details.get("ssr_get_course_offering_resp", {})
+                            .get("course_offering_result", {})
+                            .get("course_offering", {})
+                            .get("course_attributes", {})
+                            .get("course_attribute", [])
+                    )
+                except Exception as e:
+                    print(f"    ⚠️  details call failed for {cid}/{off_nbr}: {e}")
 
             # build the pivot dict and remember new column names
             # build the pivot dict and remember new column names
-            for a in _as_list(src_attrs):
-                if not _is_attr_dict(a):
-                    continue                        # skip stray strings / nulls
+                for a in _as_list(src_attrs):
+                    if not _is_attr_dict(a):
+                        continue                        # skip stray strings / nulls
 
-                k_raw = a["crse_attr_lov_descr"].strip()
-                v_raw = a["crse_attr_value_lov_descr"].strip()
-                if v_raw.lower() == "foreign languages curriculum courses":
-                    v_raw = "(FL) Foreign Languages"
-                
-                if not (k_raw and v_raw):
-                    continue
+                    k_raw = a["crse_attr_lov_descr"].strip()
+                    v_raw = a["crse_attr_value_lov_descr"].strip()
+                    if v_raw.lower() == "foreign languages curriculum courses":
+                        v_raw = "(FL) Foreign Languages"
+                    
+                    if not (k_raw and v_raw):
+                        continue
 
-                k = sql_safe(k_raw)                # legal SQLite identifier
-                amap[k].append(v_raw)
-                attribute_columns.add(k)
+                    k = sql_safe(k_raw)                # legal SQLite identifier
+                    amap[k].append(v_raw)
+                    attribute_columns.add(k)
 
 
-            buffers["attrs"].append({
-                "offering_id": off_id,
-                **{k: ", ".join(v) for k, v in amap.items()}
-            })
+                buffers["attrs"].append({
+                    "offering_id": off_id,
+                    **{k: ", ".join(v) for k, v in amap.items()}
+                })
             # class listing
-            cls_id = f"{off_id}_{term_code}"
-            buffers["classes"].append({"class_id": cls_id, "crse_id": cid, "crse_offer_nbr": off_nbr})
+                cls_id = f"{off_id}_{term_code}"
+                buffers["classes"].append({"class_id": cls_id, "crse_id": cid, "crse_offer_nbr": off_nbr})
             # ------------- meeting patterns  +  instructors -------------
-            class_summaries = _as_list(
-                lst.get("classes_summary", {}).get("class_summary")
-            )
-
-            for cs in class_summaries:
-                pats = _as_list(
-                    cs.get("classes_meeting_patterns", {})
-                    .get("class_meeting_pattern")
+                class_summaries = _as_list(
+                    lst.get("classes_summary", {}).get("class_summary")
                 )
 
-                for p in pats:
-                    # ── meeting row ───────────────────────────────────────
-                    buffers["meetings"].append({
-                        "class_id":           cls_id,
-                        "ssr_mtg_loc_long":   p.get("ssr_mtg_loc_long"),
-                        "ssr_mtg_sched_long": p.get("ssr_mtg_sched_long"),
-                    })
+                for cs in class_summaries:
+                    pats = _as_list(_dig(cs, "classes_meeting_patterns", "class_meeting_pattern"))                    
 
-                    # ── instructors inside *this* pattern ────────────────
-                    for ins in _as_list(
-                        p.get("class_instructors", {})
-                        .get("class_instructor")
-                    ):
-                        buffers["instructors"].append({
-                            "class_id":     cls_id,
-                            "name_display": ins.get("name_display"),
-                            "last_name":    ins.get("last_name"),
-                            "first_name":   ins.get("first_name"),
+                    for p in pats:
+                        # ── meeting row ───────────────────────────────────────
+                        buffers["meetings"].append({
+                            "class_id":           cls_id,
+                            "ssr_mtg_loc_long":   p.get("ssr_mtg_loc_long"),
+                            "ssr_mtg_sched_long": p.get("ssr_mtg_sched_long"),
                         })
-                    # flush per subject
-                    flush()
+
+                        # ── instructors inside *this* pattern ────────────────
+                        for ins in _as_list(
+                                    _dig(p, "class_instructors", "class_instructor")   # safe!
+                        ):
+                            buffers["instructors"].append({
+                                "class_id":     cls_id,
+                                "name_display": ins.get("name_display"),
+                                "last_name":    ins.get("last_name"),
+                                "first_name":   ins.get("first_name"),
+                            })
+        flush()
 
 except KeyboardInterrupt:
     print("\nInterrupted! Flushing remaining data...")
