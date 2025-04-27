@@ -102,6 +102,30 @@
     padding-bottom: 0.5rem;
     border-bottom: 1px solid #ddd;
   }
+  .star-rating {
+    display: inline-flex;
+    flex-direction: row-reverse;
+    font-size: 1.8rem;
+    justify-content: center;
+    padding: 0.5rem 0;
+  }
+
+  .star-rating .star {
+    cursor: pointer;
+    color: #ccc;
+    transition: color 0.2s;
+  }
+
+  .star-rating .star:hover,
+  .star-rating .star:hover ~ .star {
+    color: gold;
+  }
+
+  .star-rating .star.selected,
+  .star-rating .star.selected ~ .star {
+    color: gold;
+  }
+
 </style>
 
 <div class="container">
@@ -279,6 +303,19 @@
             detailCell.innerHTML = detailHtml;
             detailRow.appendChild(detailCell);
             rowElement.parentNode.insertBefore(detailRow, rowElement.nextElementSibling);
+            
+
+            document.querySelectorAll('.star-rating .star').forEach(star => {
+              star.addEventListener('click', function() {
+                const value = this.getAttribute('data-value');
+                const stars = this.parentNode.querySelectorAll('.star');
+                stars.forEach(s => {
+                  s.classList.toggle('selected', s.getAttribute('data-value') >= value);
+                });
+                this.parentNode.querySelector('input[name="rating"]').value = value;
+              });
+            });
+
           });
       })
       .catch(err => {
@@ -313,46 +350,76 @@
       <h5>Submit a Review</h5>
       <form onsubmit="submitReview(event, '${course.id}')">
         <textarea name="review_text" placeholder="Write your review here..." required style="width:100%; height:80px;"></textarea><br>
-        <input type="number" name="rating" placeholder="Rating (1-5)" min="1" max="5" required>
+        <div class="star-rating" style="font-size: 2rem;">
+          <span class="star" data-value="1">☆</span>
+          <span class="star" data-value="2">☆</span>
+          <span class="star" data-value="3">☆</span>
+          <span class="star" data-value="4">☆</span>
+          <span class="star" data-value="5">☆</span>
+          <input type="hidden" name="rating" required>
+        </div>
         <button type="submit">Submit Review</button>
       </form>
     </div>`;
     return html;
   }
 
+  
+
   // Submit a review.
   function submitReview(event, courseId) {
-    event.preventDefault();
-    const form = event.target;
-    const reviewText = form.review_text.value;
-    const rating = form.rating.value;
-    const data = {
-      course_id: courseId,
-      review_text: reviewText,
-      rating: parseInt(rating)
-    };
-    fetch("/api/reviews", {
-      method: "POST",
-      headers: {"Content-Type": "application/json"},
-      body: JSON.stringify(data)
-    })
-    .then(response => {
-      if(response.ok) return response.json();
-      throw new Error("Failed to submit review.");
-    })
-    .then(result => {
-      alert("Review submitted successfully!");
-      const row = document.querySelector(`tr.course-row[data-course-id="${courseId}"]`);
-      if(row) {
-        toggleCourseDetail(row, courseId);
-        setTimeout(() => { toggleCourseDetail(row, courseId); }, 500);
-      }
-    })
-    .catch(err => {
-      console.error(err);
-      alert("Error submitting review.");
-    });
-  }
+  event.preventDefault();
+  const form = event.target;
+  const reviewText = form.review_text.value;
+  const rating = form.rating.value;
+  const data = {
+    course_id: courseId,
+    review_text: reviewText,
+    rating: parseInt(rating)
+  };
+  fetch("/api/reviews", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify(data)
+  })
+  .then(response => {
+    if(!response.ok) throw new Error("Failed to submit review.");
+    return response.json();
+  })
+  .then(result => {
+    alert("Review submitted successfully!");
+    const row = document.querySelector(`tr.course-row[data-course-id="${courseId}"]`);
+    if (row) {
+        // Remove any open detail row first
+        if (row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row')) {
+            row.parentNode.removeChild(row.nextElementSibling);
+        }
+        // Fetch updated reviews + redisplay
+        fetch(`/api/reviews?course_id=${courseId}`)
+          .then(response => response.json())
+          .then(reviews => {
+              fetch(`/api/course/${courseId}`)
+                .then(response => response.json())
+                .then(courseDetail => {
+                    const detailHtml = renderCourseDetail(courseDetail, reviews);
+                    const detailRow = document.createElement("tr");
+                    detailRow.classList.add("detail-row");
+                    const detailCell = document.createElement("td");
+                    detailCell.colSpan = 8;
+                    detailCell.innerHTML = detailHtml;
+                    detailRow.appendChild(detailCell);
+                    row.parentNode.insertBefore(detailRow, row.nextElementSibling);
+                });
+          });
+    }
+})
+
+  .catch(err => {
+    console.error("Error during actual POST:", err);
+    alert("Error submitting review to server.");
+  });
+}
+
 
   // Professor autocomplete functionality.
   var professorInput = document.getElementById('professor');

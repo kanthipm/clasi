@@ -292,11 +292,11 @@ def api_professors():
     query_text = request.args.get("query", "").strip()
     conn = connect_db()
     if query_text:
-        sql = "SELECT DISTINCT professor FROM sections WHERE professor LIKE ? ORDER BY professor"
+        sql = "SELECT DISTINCT professor FROM instructors WHERE professor LIKE ? ORDER BY professor"
         param = (f"%{query_text}%",)
         rows = conn.execute(sql, param).fetchall()
     else:
-        rows = conn.execute("SELECT DISTINCT professor FROM sections ORDER BY professor").fetchall()
+        rows = conn.execute("SELECT DISTINCT professor FROM instructors ORDER BY professor").fetchall()
     conn.close()
     suggestions = [r[0] for r in rows if r[0]]
     return jsonify(suggestions)
@@ -306,6 +306,7 @@ def api_professors():
 def api_reviews():
     if request.method == "POST":
         data = request.get_json()
+        print("Review POST Data:", data)
         course_id = data.get("course_id")
         user_id = session.get("user_id")
         review_text = data.get("review_text")
@@ -380,8 +381,13 @@ def api_favorites_get():
     """
 
     conn = _get_conn()
+
+    placeholders = ",".join("?" for _ in fav_ids)
+    sql += f" WHERE c.crse_id IN ({placeholders}) GROUP BY c.crse_id"
+
     rows = conn.execute(sql, fav_ids).fetchall()
     conn.close()
+
     return jsonify([dict(r) for r in rows])
 
 @app.route("/api/favorites", methods=["POST"])
