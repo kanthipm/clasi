@@ -308,21 +308,23 @@
             document.querySelectorAll('.star-rating .star').forEach(star => {
               star.addEventListener('click', function() {
                 const value = this.getAttribute('data-value');
+                const adjustedValue = 6 - value;
                 const stars = this.parentNode.querySelectorAll('.star');
                 stars.forEach(s => {
                   s.classList.toggle('selected', s.getAttribute('data-value') >= value);
                 });
-                this.parentNode.querySelector('input[name="rating"]').value = value;
+                this.parentNode.querySelector('input[name="rating"]').value = adjustedValue;
               });
             });
             document.querySelectorAll('.difficulty-stars .star').forEach(star => {
               star.addEventListener('click', function() {
                 const value = this.getAttribute('data-value');
-                const stars = this.parentNode.querySelectorAll('.star');
+                const adjustedValue = 6 - value;
+                const stars = Array.from(this.parentNode.children).filter(child => child.classList.contains('star'));
                 stars.forEach(s => {
                   s.classList.toggle('selected', s.getAttribute('data-value') >= value);
                 });
-                this.parentNode.querySelector('input[name="difficulty"]').value = value;
+                this.parentNode.querySelector('input[name="difficulty"]').value = adjustedValue;
               });
             });
           });
