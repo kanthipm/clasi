@@ -315,7 +315,16 @@
                 this.parentNode.querySelector('input[name="rating"]').value = value;
               });
             });
-
+            document.querySelectorAll('.difficulty-stars .star').forEach(star => {
+              star.addEventListener('click', function() {
+                const value = this.getAttribute('data-value');
+                const stars = this.parentNode.querySelectorAll('.star');
+                stars.forEach(s => {
+                  s.classList.toggle('selected', s.getAttribute('data-value') >= value);
+                });
+                this.parentNode.querySelector('input[name="difficulty"]').value = value;
+              });
+            });
           });
       })
       .catch(err => {
@@ -341,6 +350,7 @@
       reviews.forEach(review => {
         html += `<div class="review">
           <p><strong>Rating:</strong> ${review.rating} / 5</p>
+          <p><strong>Difficulty:</strong> ${review.difficulty} / 5</p>
           <p>${review.review_text || ""}</p>
           <p><em>${new Date(review.timestamp).toLocaleString()}</em></p>
         </div>`;
@@ -350,7 +360,9 @@
       <h5>Submit a Review</h5>
       <form onsubmit="submitReview(event, '${course.id}')">
         <textarea name="review_text" placeholder="Write your review here..." required style="width:100%; height:80px;"></textarea><br>
-        <div class="star-rating" style="font-size: 2rem;">
+
+        <label>Overall Rating:</label>
+        <div class="star-rating overall-stars" style="font-size: 2rem; margin-bottom: 10px;">
           <span class="star" data-value="1">☆</span>
           <span class="star" data-value="2">☆</span>
           <span class="star" data-value="3">☆</span>
@@ -358,9 +370,21 @@
           <span class="star" data-value="5">☆</span>
           <input type="hidden" name="rating" required>
         </div>
+
+        <label>Difficulty Rating:</label>
+        <div class="star-rating difficulty-stars" style="font-size: 2rem; margin-bottom: 10px;">
+          <span class="star" data-value="1">☆</span>
+          <span class="star" data-value="2">☆</span>
+          <span class="star" data-value="3">☆</span>
+          <span class="star" data-value="4">☆</span>
+          <span class="star" data-value="5">☆</span>
+          <input type="hidden" name="difficulty" required>
+        </div>
+
         <button type="submit">Submit Review</button>
       </form>
     </div>`;
+
     return html;
   }
 
@@ -372,10 +396,12 @@
   const form = event.target;
   const reviewText = form.review_text.value;
   const rating = form.rating.value;
+  const difficulty = form.difficulty.value;
   const data = {
     course_id: courseId,
     review_text: reviewText,
-    rating: parseInt(rating)
+    rating: parseInt(rating),
+    difficulty: parseInt(difficulty)
   };
   fetch("/api/reviews", {
     method: "POST",

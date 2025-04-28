@@ -64,6 +64,7 @@ create_table("reviews", {
     "user_id": "INTEGER NOT NULL",
     "review_text": "TEXT",
     "rating": "INTEGER",
+    "difficulty": "INTEGER",
     "timestamp": "TEXT"
 })
 
@@ -311,13 +312,14 @@ def api_reviews():
         user_id = session.get("user_id")
         review_text = data.get("review_text")
         rating = data.get("rating")
+        difficulty = data.get("difficulty")
         timestamp = datetime.datetime.now().isoformat()
         if not course_id or not user_id:
             return jsonify({"error": "course_id and user_id are required"}), 400
         conn = connect_db()
         conn.execute(
-            "INSERT INTO reviews (course_id, user_id, review_text, rating, timestamp) VALUES (?, ?, ?, ?, ?)",
-            (course_id, user_id, review_text, rating, timestamp)
+            "INSERT INTO reviews (course_id, user_id, review_text, rating, difficulty, timestamp) VALUES (?, ?, ?, ?, ?, ?)",
+            (course_id, user_id, review_text, rating, difficulty, timestamp)
         )
         conn.commit()
         conn.close()
@@ -327,12 +329,14 @@ def api_reviews():
         conn = connect_db()
         if course_id:
             rows = conn.execute(
-                "SELECT id, course_id, user_id, review_text, rating, timestamp FROM reviews WHERE course_id = ? ORDER BY timestamp DESC", 
+                "SELECT id, course_id, user_id, review_text, rating, difficulty, timestamp FROM reviews WHERE course_id = ? ORDER BY timestamp DESC", 
                 (course_id,)
             ).fetchall()
+
+
         else:
             rows = conn.execute(
-                "SELECT id, course_id, user_id, review_text, rating, timestamp FROM reviews ORDER BY timestamp DESC"
+                "SELECT id, course_id, user_id, review_text, rating, difficulty, timestamp FROM reviews ORDER BY timestamp DESC"
             ).fetchall()
         conn.close()
         reviews = []
@@ -343,7 +347,8 @@ def api_reviews():
                 "user_id": r[2],
                 "review_text": r[3],
                 "rating": r[4],
-                "timestamp": r[5]
+                "difficulty": r[5],
+                "timestamp": r[6]
             })
         return jsonify(reviews)
 
