@@ -376,6 +376,17 @@
       <p><strong>Professor(s):</strong> ${course.professors || "N/A"}</p>
       <hr>
       <h5>Reviews</h5>`;
+    if (reviews.length > 0) {
+      const totalRating = reviews.reduce((sum, r) => sum + (r.rating || 0), 0);
+      const totalDiff   = reviews.reduce((sum, r) => sum + (r.difficulty || 0), 0);
+      const avgRating   = (totalRating / reviews.length).toFixed(1);
+      const avgDiff     = (totalDiff   / reviews.length).toFixed(1);
+      html += `
+        <p><strong>Average Rating:</strong> ${avgRating} / 5 (${reviews.length} review${reviews.length>1?'s':''})</p>
+        <p><strong>Average Difficulty:</strong> ${avgDiff} / 5</p>
+        <hr>
+      `;
+    }
     if(reviews.length === 0) {
       html += "<p>No reviews yet.</p>";
     } else {
