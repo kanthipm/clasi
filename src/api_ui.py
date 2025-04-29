@@ -197,6 +197,9 @@ def api_courses():
     raw_aok = request.args.getlist("aok")
     raw_moi = request.args.getlist("moi")
 
+    min_nbr = request.args.get("min_nbr", type=int)
+    max_nbr = request.args.get("max_nbr", type=int)
+
     aok_codes = normalize_codes(raw_aok)   # ["NS", "SS", …]
     moi_codes = normalize_codes(raw_moi)   # ["CCI", "EI", "W", …]
 
@@ -234,6 +237,13 @@ def api_courses():
     if professor:
         clauses.append("i.name_display LIKE ?")
         params.append(f"%{professor}%")
+
+    if min_nbr is not None:
+        clauses.append("CAST(c.catalog_nbr AS INTEGER) >= ?")
+        params.append(min_nbr)
+    if max_nbr is not None:
+        clauses.append("CAST(c.catalog_nbr AS INTEGER) <= ?")
+        params.append(max_nbr)
 
     if clauses:
         base_sql += " WHERE " + " AND ".join(clauses)
