@@ -141,6 +141,31 @@
       </select>
     </div>
 
+    <!-- Min Catalog # -->
+    <div class="form-group">
+      <label for="min_nbr">Min Catalog #:</label>
+      <input
+        type="number"
+        id="min_nbr"
+        name="min_nbr"
+        min="0"
+        placeholder="e.g. 200"
+      />
+    </div>
+
+    <!-- Max Catalog # -->
+    <div class="form-group">
+      <label for="max_nbr">Max Catalog #:</label>
+      <input
+        type="number"
+        id="max_nbr"
+        name="max_nbr"
+        min="0"
+        placeholder="e.g. 400"
+      />
+    </div>
+
+
     <!-- Areas of Knowledge Checkboxes -->
     <div class="form-group">
       <label>Area(s) of Knowledge:</label>
@@ -245,6 +270,11 @@
     if(professor) params.append("professor", professor);
     aokValues.forEach(val => params.append("aok", val));
     moiValues.forEach(val => params.append("moi", val));
+
+    var minNbr = document.getElementById('min_nbr').value;
+    var maxNbr = document.getElementById('max_nbr').value;
+    if (minNbr) params.append("min_nbr", minNbr);
+    if (maxNbr) params.append("max_nbr", maxNbr);
     
     fetch(`/api/courses?${params.toString()}`)
       .then(response => response.json())
