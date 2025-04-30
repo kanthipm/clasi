@@ -471,6 +471,30 @@ def api_favorites_post():
     conn.close()
     return jsonify({"success": True})
 
+@app.route("/api/favorites", methods=["DELETE"])
+@login_required
+def api_favorites_delete():
+    """
+    Body JSON: { "course_id": "012345" }
+    Removes one favorite row for the logged-in user.
+    """
+    data       = request.get_json() or {}
+    course_id  = data.get("course_id")
+    user_id    = session["user_id"]
+
+    if not course_id:
+        return jsonify({"error": "course_id is required"}), 400
+
+    conn = connect_db()
+    conn.execute(
+        "DELETE FROM favorites WHERE user_id=? AND course_id=?",
+        (user_id, course_id)
+    )
+    conn.commit()
+    conn.close()
+
+    return jsonify({"success": True})
+
 # ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     app.run(debug=True)   # auto-reload in development
