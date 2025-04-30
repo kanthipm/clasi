@@ -1,3 +1,5 @@
+# src/api_ui.py
+
 import os, re, sqlite3, hashlib, binascii, datetime
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify
 from functools import wraps
@@ -74,6 +76,18 @@ create_table("favorites", {
     "course_id": "TEXT",
     "PRIMARY KEY (user_id, course_id)": ""
 })
+
+# ---------------------------
+# Professor ratings table
+# ---------------------------
+create_table("professor_ratings", {
+    "professor":            "TEXT PRIMARY KEY",
+    "avg_rating":           "REAL",
+    "avg_difficulty":       "REAL",
+    "would_take_again_pct": "REAL",
+    "tags":                 "TEXT"
+})
+
 
 # ---------------------------
 # Utilities
@@ -297,20 +311,44 @@ def api_departments():
     return jsonify(departments)
 
 
-# 4. /api/professors - Professor suggestions for autocomplete.
 @app.route("/api/professors", methods=["GET"])
 def api_professors():
     query_text = request.args.get("query", "").strip()
-    conn = connect_db()
+    conn = _get_conn()
+
+    # Base query: grab distinct professor names + any ratings
+    sql = """
+    SELECT DISTINCT
+      i.name_display    AS professor,
+      pr.avg_rating,
+      pr.avg_difficulty,
+      pr.would_take_again_pct,
+      pr.tags
+    FROM instructors i
+    LEFT JOIN professor_ratings pr
+      ON i.name_display = pr.professor
+    """
+    params = []
     if query_text:
-        sql = "SELECT DISTINCT professor FROM instructors WHERE professor LIKE ? ORDER BY professor"
-        param = (f"%{query_text}%",)
-        rows = conn.execute(sql, param).fetchall()
-    else:
-        rows = conn.execute("SELECT DISTINCT professor FROM instructors ORDER BY professor").fetchall()
+        sql += " WHERE i.name_display LIKE ?"
+        params.append(f"%{query_text}%")
+    sql += " ORDER BY i.name_display"
+
+    rows = conn.execute(sql, params).fetchall()
     conn.close()
-    suggestions = [r[0] for r in rows if r[0]]
+
+    # Build JSON array
+    suggestions = []
+    for r in rows:
+        suggestions.append({
+            "professor":            r["professor"],
+            "avg_rating":           r["avg_rating"],
+            "avg_difficulty":       r["avg_difficulty"],
+            "would_take_again_pct": r["would_take_again_pct"],
+            "tags":                 r["tags"],
+        })
     return jsonify(suggestions)
+
 
 # 5. /api/reviews - Get reviews and submit a new review.
 @app.route("/api/reviews", methods=["GET", "POST"])
