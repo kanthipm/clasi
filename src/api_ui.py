@@ -6,22 +6,16 @@ from functools import wraps
 from src.db import create_table, insert_many, query, connect_db
 from werkzeug.utils import secure_filename
 
-# ----------------------------------------------------
-# Build absolute paths
-# ----------------------------------------------------
-BASE_DIR = os.path.dirname(__file__)         # e.g., /Users/you/clasier/src
+# Paths
+BASE_DIR = os.path.dirname(__file__)
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 UPLOAD_PROFILE_PICS = os.path.join(STATIC_DIR, 'profile_pics')
-
-# Ensure the upload folder exists
 os.makedirs(UPLOAD_PROFILE_PICS, exist_ok=True)
 
-# ----------------------------------------------------
-# Create Flask app, telling it where static/ is
-# ----------------------------------------------------
+# Flask setup
 app = Flask(__name__, static_folder=STATIC_DIR)
-app.secret_key = "replace_this_with_getenv_secret_key_soon"
-app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB for images
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "replace_this_with_getenv_secret_key_soon")
+app.config['MAX_CONTENT_LENGTH'] = 2 * 1024 * 1024  # 2MB uploads
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 app.config['UPLOAD_FOLDER'] = UPLOAD_PROFILE_PICS
 
@@ -97,92 +91,77 @@ def allowed_file(filename: str) -> bool:
 
 def hash_password(password: str) -> str:
     salt = os.urandom(16)
-    dk = hashlib.pbkdf2_hmac('sha256', password.encode(), salt, 200_000)
+    dk = hashlib.pbkdf2_hmac('sha256', pw.encode(), salt, 200_000)
     return f"{binascii.hexlify(salt).decode()}:{binascii.hexlify(dk).decode()}"
 
-def verify_password(stored_hash: str, provided_password: str) -> bool:
+def verify_password(stored, pw):
     try:
-        salt_hex, hash_hex = stored_hash.split(":")
+        salt_hex, stored_hash = stored.split(":")
+        salt = binascii.unhexlify(salt_hex)
     except ValueError:
         return False
-    salt = binascii.unhexlify(salt_hex)
-    new_hash = hashlib.pbkdf2_hmac('sha256', provided_password.encode(), salt, 200_000)
-    return binascii.hexlify(new_hash).decode() == hash_hex
+    new_hash = hashlib.pbkdf2_hmac('sha256', pw.encode(), salt, 200_000)
+    return binascii.hexlify(new_hash).decode() == stored_hash
 
-# ---------------------------
-# Login-required Decorator
-# ---------------------------
+# Login decorator
 def login_required(f):
     @wraps(f)
     def decorated(*args, **kwargs):
-        if "user_id" not in session:
-            return redirect(url_for("login"))
+        if 'user_id' not in session:
+            return redirect(url_for('login'))
         return f(*args, **kwargs)
     return decorated
 
-# ---------------------------
-# HTML Routes
-# ---------------------------
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
-    if request.method == "POST":
-        name = request.form["name"].strip()
-        username = request.form["username"].strip()
-        password = request.form["password"]
+    if request.method == 'POST':
+        name = request.form['name'].strip()
+        username = request.form['username'].strip()
+        password = request.form['password']
         hashed = hash_password(password)
         try:
-            insert_many("users", [{"name": name, "username": username, "password_hash": hashed}])
-            flash("Account created! Please log in.", "success")
-            return redirect(url_for("login"))
+            insert_many('users', [{'name': name, 'username': username, 'password_hash': hashed}])
+            flash('Account created! Please log in.', 'success')
+            return redirect(url_for('login'))
         except sqlite3.IntegrityError:
-            flash("Username already taken.", "danger")
-    return render_template("signup.html")
+            flash('Username already taken.', 'danger')
+    return render_template('signup.html')
 
-@app.route("/login", methods=["GET", "POST"])
+@app.route("/login", methods=["GET","POST"])
 def login():
-    if request.method == "POST":
-        username = request.form["username"].strip()
-        password = request.form["password"]
-        user = query("users", {"username": username})
-        if user and verify_password(user[0][3], password):
-            session["user_id"] = user[0][0]
-            session["username"] = user[0][2]
-            return redirect(url_for("index"))
-        flash("Invalid credentials", "danger")
-    return render_template("login.html")
+    if request.method == 'POST':
+        username = request.form['username'].strip()
+        password = request.form['password']
+        rows = query('users', {'username': username})
+        if rows and verify_password(rows[0][3], password):
+            session['user_id'] = rows[0][0]
+            session['username'] = rows[0][2]
+            return redirect(url_for('index'))
+        flash('Invalid credentials', 'danger')
+    return render_template('login.html')
 
-@app.route("/logout")
+@app.route('/logout')
 def logout():
     session.clear()
-    return redirect(url_for("login"))
+    return redirect(url_for('login'))
 
-@app.route("/")
+@app.route('/')
 @login_required
 def index():
     conn = connect_db()
     subjects = [r[0] for r in conn.execute("SELECT DISTINCT subject FROM courses").fetchall()]
     conn.close()
-    # Pass current_user_id for favorites actions.
-    return render_template("index.html", subjects=subjects, current_user_id=session["user_id"])
+    return render_template('index.html', subjects=subjects, current_user_id=session['user_id'])
 
-# Profile route; only accessible when logged in.
-@app.route("/profile", endpoint="profile")
+@app.route('/profile')
 @login_required
 def profile():
-    rows = query("users", {"id": session.get("user_id")})
+    rows = query('users', {'id': session['user_id']})
     if not rows:
-        # If no user found (stale session), redirect to login.
-        return redirect(url_for("login"))
-    row = rows[0]
-    user = {
-        "id": row[0],
-        "name": row[1],
-        "username": row[2],
-        "year": row[4],
-        "major": row[5]
-        # Additional fields (profile_pic, etc.) can be added if present.
-    }
-    return render_template("profile.html", user=user)
+        return redirect(url_for('login'))
+    r = rows[0]
+    user = {'id': r[0], 'name': r[1], 'username': r[2], 'year': r[4], 'major': r[5]}
+    return render_template('profile.html', user=user)
 
 @app.route("/profile/edit", endpoint="edit_profile", methods=["GET", "POST"])
 @login_required
@@ -206,69 +185,117 @@ def edit_profile():
 
 @app.route("/api/courses", methods=["GET"])
 def api_courses():
-    subject = request.args.get("subject", "").strip()
-    professor  = request.args.get("professor", "").strip()
-    raw_aok = request.args.getlist("aok")
-    raw_moi = request.args.getlist("moi")
+    # --------------------------------------------------
+    # Pagination
+    # --------------------------------------------------
+    page = max(request.args.get("page", 1, type=int), 1)
+    per_page_req = request.args.get("per_page", 20, type=int)
+    PER_PAGE_MAX = 200                                    # hard cap
+    per_page = max(1, min(per_page_req, PER_PAGE_MAX))
+    offset = (page - 1) * per_page
 
-    min_nbr = request.args.get("min_nbr", type=int)
-    max_nbr = request.args.get("max_nbr", type=int)
+    # --------------------------------------------------
+    # Filters (unchanged)
+    # --------------------------------------------------
+    subject   = request.args.get("subject", "").strip()
+    professor = request.args.get("professor", "").strip()
+    raw_aok   = request.args.getlist("aok")
+    raw_moi   = request.args.getlist("moi")
+    min_nbr   = request.args.get("min_nbr", type=int)
+    max_nbr   = request.args.get("max_nbr", type=int)
 
-    aok_codes = normalize_codes(raw_aok)   # ["NS", "SS", …]
-    moi_codes = normalize_codes(raw_moi)   # ["CCI", "EI", "W", …]
+    aok_codes = normalize_codes(raw_aok)
+    moi_codes = normalize_codes(raw_moi)
 
-    base_sql = """
-    SELECT
-        c.crse_id                      AS id,
-        c.subject                      AS subject,
-        c.catalog_nbr                  AS catalog_nbr,
-        c.course_title_long            AS title,
-        ca.curriculum_areas_of_knowledge AS aok,
-        ca.curriculum_modes_of_inquiry   AS moi,
-        GROUP_CONCAT(DISTINCT i.name_display) AS professors
-    FROM courses            AS c
-    LEFT JOIN class_listings AS cl ON c.crse_id = cl.crse_id
-    LEFT JOIN course_offerings AS co ON c.crse_id = co.crse_id 
-    LEFT JOIN course_attributes AS ca ON co.offering_id = ca.offering_id
-    LEFT JOIN instructors    AS i  ON cl.class_id = i.class_id
-    """
-
-    clauses = []
-    params  = []
+    where_clauses, params = [], []
 
     if subject:
-        clauses.append("c.subject = ?")
+        where_clauses.append("c.subject = ?")
         params.append(subject)
 
     for aok in aok_codes:
-        clauses.append("ca.curriculum_areas_of_knowledge LIKE ?")
+        where_clauses.append("ca.curriculum_areas_of_knowledge LIKE ?")
         params.append(f"%({aok})%")
 
     for moi in moi_codes:
-        clauses.append("ca.curriculum_modes_of_inquiry LIKE ?")
+        where_clauses.append("ca.curriculum_modes_of_inquiry LIKE ?")
         params.append(f"%({moi})%")
 
     if professor:
-        clauses.append("i.name_display LIKE ?")
+        where_clauses.append("i.name_display LIKE ?")
         params.append(f"%{professor}%")
 
     if min_nbr is not None:
-        clauses.append("CAST(c.catalog_nbr AS INTEGER) >= ?")
+        where_clauses.append("CAST(c.catalog_nbr AS INTEGER) >= ?")
         params.append(min_nbr)
+
     if max_nbr is not None:
-        clauses.append("CAST(c.catalog_nbr AS INTEGER) <= ?")
+        where_clauses.append("CAST(c.catalog_nbr AS INTEGER) <= ?")
         params.append(max_nbr)
 
-    if clauses:
-        base_sql += " WHERE " + " AND ".join(clauses)
+    where_sql = " WHERE " + " AND ".join(where_clauses) if where_clauses else ""
 
-    base_sql += " GROUP BY c.crse_id"
+    # --------------------------------------------------
+    # 1) Total rows that match the filters
+    # --------------------------------------------------
+    count_sql = f"""
+        SELECT COUNT(DISTINCT c.crse_id) AS total
+        FROM courses AS c
+        LEFT JOIN class_listings   AS cl ON c.crse_id = cl.crse_id
+        LEFT JOIN course_offerings AS co ON c.crse_id = co.crse_id
+        LEFT JOIN course_attributes AS ca ON co.offering_id = ca.offering_id
+        LEFT JOIN instructors      AS i  ON cl.class_id = i.class_id
+        {where_sql}
+    """
+
+    # --------------------------------------------------
+    # 2) Paged slice
+    # --------------------------------------------------
+    data_sql = f"""
+        SELECT
+            c.crse_id                             AS id,
+            c.subject                             AS subject,
+            c.catalog_nbr                         AS catalog_nbr,
+            c.course_title_long                   AS title,
+            ca.curriculum_areas_of_knowledge      AS aok,
+            ca.curriculum_modes_of_inquiry        AS moi,
+            GROUP_CONCAT(DISTINCT i.name_display) AS professors
+        FROM courses AS c
+        LEFT JOIN class_listings   AS cl ON c.crse_id = cl.crse_id
+        LEFT JOIN course_offerings AS co ON c.crse_id = co.crse_id
+        LEFT JOIN course_attributes AS ca ON co.offering_id = ca.offering_id
+        LEFT JOIN instructors      AS i  ON cl.class_id = i.class_id
+        {where_sql}
+        GROUP BY c.crse_id
+        ORDER BY c.subject, CAST(c.catalog_nbr AS INTEGER)
+        LIMIT ? OFFSET ?
+    """
 
     conn = _get_conn()
-    rows = conn.execute(base_sql, params).fetchall()
+
+    total = conn.execute(count_sql, params).fetchone()["total"]
+
+    # LIMIT/OFFSET params go *after* the filter params
+    page_rows = conn.execute(
+        data_sql,
+        params + [per_page, offset]
+    ).fetchall()
+
     conn.close()
 
-    return jsonify([dict(r) for r in rows])
+    total_pages = (total + per_page - 1) // per_page  # ceil div
+
+    # --------------------------------------------------
+    # Response
+    # --------------------------------------------------
+    return jsonify({
+        "page":        page,
+        "per_page":    per_page,
+        "total":       total,
+        "total_pages": total_pages,
+        "courses":     [dict(r) for r in page_rows]
+    })
+
 
 # 2. /api/course/<course_id> - Detailed info for a single course.
 @app.route("/api/course/<course_id>", methods=["GET"])
@@ -457,23 +484,12 @@ def api_favorites_post():
         conn.commit()
     except sqlite3.IntegrityError:
         conn.close()
-        return jsonify({"message": "Already favorited"}), 200
-    conn.close()
-    return jsonify({"success": True}), 201
-
-@app.route("/api/favorites", methods=["DELETE"])
-@login_required
-def api_favorites_delete():
-    data = request.get_json()
-    course_id = data.get("course_id")
-    user_id = session["user_id"]
-    if not course_id:
-        return jsonify({"error": "course_id is required"}), 400
-    conn = connect_db()
-    conn.execute("DELETE FROM favorites WHERE user_id = ? AND course_id = ?", (user_id, course_id))
+        return jsonify({'success': True})
+    # DELETE
+    conn.execute('DELETE FROM favorites WHERE user_id = ? AND course_id = ?', (user_id, cid))
     conn.commit()
     conn.close()
-    return jsonify({"success": True}), 200
+    return jsonify({'success': True})
 
-if __name__ == "__main__":
-    app.run(debug=True, use_reloader=False)
+if __name__ == '__main__':
+    app.run(debug=False)
