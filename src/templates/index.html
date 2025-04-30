@@ -210,10 +210,14 @@
       <tr><th></th><th>ID</th><th>Subject</th><th>Catalog #</th><th>Title</th><th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>`;
     courseList.forEach(c => {
       const heart = favoritesList.includes(c.id) ? "❤️" : "🤍";
-      html += `<tr class="course-row" data-course-id="${c.id}" onclick="toggleCourseDetail(this,'${c.id}')">
+      html += `<tr class="course-row"
+                  data-course-id="${c.id}"
+                  onclick="toggleCourseDetail(event, this, '${c.id}')">
         <td><span class="favorite-btn" onclick="toggleFavorite(event,'${c.id}')">${heart}</span></td>
-        <td>${c.id}</td><td>${c.subject}</td><td>${(c.catalog_nbr || '').trim()}</td>
-        <td>${c.title}</td><td>${c.aok || ""}</td><td>${c.moi || ""}</td><td>${c.professors || ""}</td>
+        <td>${c.id}</td><td>${c.subject}</td>
+        <td>${(c.catalog_nbr || '').trim()}</td>
+        <td>${c.title}</td><td>${c.aok || ""}</td>
+        <td>${c.moi || ""}</td><td>${c.professors || ""}</td>
       </tr>`;
     });
     html += "</table>";
@@ -225,28 +229,29 @@
     if (totalPages <= 1) { pager.innerHTML = ""; return; }
 
     const makeBtn = (n, label = n) =>
-      `<button ${n === currentPage ? "disabled" : ""} onclick="fetchCourses(${n})">${label}</button>`;
+      `<button ${n===currentPage?"disabled":""} onclick="fetchCourses(${n})">${label}</button>`;
 
-    let html = makeBtn(Math.max(1, currentPage - 1), "‹");
-
-    for (let n = 1; n <= totalPages; n++) {
-      if (n === 1 || n === totalPages || Math.abs(n - currentPage) <= 2) {
+    let html = makeBtn(Math.max(1, currentPage-1), "‹");
+    for (let n=1; n<=totalPages; n++) {
+      if (n===1||n===totalPages||Math.abs(n-currentPage)<=2) {
         html += makeBtn(n);
-      } else if (Math.abs(n - currentPage) === 3) {
+      } else if (Math.abs(n-currentPage)===3) {
         html += `<span class="ellipsis">…</span>`;
-        n = (n < currentPage) ? currentPage - 3 : totalPages - 1; // skip hidden range
+        n = (n<currentPage) ? currentPage-3 : totalPages-1;
       }
     }
-
-    html += makeBtn(Math.min(totalPages, currentPage + 1), "›");
+    html += makeBtn(Math.min(totalPages, currentPage+1), "›");
     pager.innerHTML = html;
   }
 
   /* ---------- Detail Row & Reviews -------------------------------------- */
-  function toggleCourseDetail(rowEl, courseId) {
-    if (event.target.classList.contains("favorite-btn")) return;
+  function toggleCourseDetail(e, rowEl, courseId) {
+    const isEvent = e && typeof e.stopPropagation==="function";
+    if (isEvent) e.stopPropagation();
 
-    // collapse if already open
+    if (isEvent && e.target.classList.contains("favorite-btn")) return;
+
+    // close if already open
     if (rowEl.nextElementSibling && rowEl.nextElementSibling.classList.contains("detail-row")) {
       rowEl.parentNode.removeChild(rowEl.nextElementSibling);
       return;
@@ -254,32 +259,41 @@
 
     fetch(`/api/course/${courseId}`)
       .then(r => r.json())
-      .then(courseDetail => {
-        fetch(`/api/reviews?course_id=${courseId}`)
-          .then(r => r.json())
-          .then(reviews => {
-            const detailHtml = renderCourseDetail(courseDetail, reviews);
-            const detailRow  = document.createElement("tr");
-            detailRow.classList.add("detail-row");
-            const cell = document.createElement("td");
-            cell.colSpan = 8;
-            cell.innerHTML = detailHtml;
-            detailRow.appendChild(cell);
-            rowEl.parentNode.insertBefore(detailRow, rowEl.nextElementSibling);
+      .then(courseDetail => fetch(`/api/reviews?course_id=${courseId}`)
+                              .then(r=>r.json())
+                              .then(reviews=>({ courseDetail, reviews })))
+      .then(({ courseDetail, reviews }) => {
+        const detailHtml = renderCourseDetail(courseDetail, reviews);
+        const detailRow  = document.createElement("tr");
+        detailRow.classList.add("detail-row");
+        const cell = document.createElement("td");
+        cell.colSpan   = 8;
+        cell.innerHTML = detailHtml;
+        detailRow.appendChild(cell);
+        rowEl.parentNode.insertBefore(detailRow, rowEl.nextElementSibling);
 
-            // activate star listeners
-            document.querySelectorAll(".star-rating .star").forEach(star => {
-              star.addEventListener("click", function() {
-                const val = this.getAttribute("data-value");
-                const adj = 6 - val;
-                const stars = this.parentNode.querySelectorAll(".star");
-                stars.forEach(s => s.classList.toggle("selected", s.getAttribute("data-value") >= val));
-                this.parentNode.querySelector("input[name='rating'],input[name='difficulty']").value = adj;
-              });
-            });
+        // attach star listeners
+        document.querySelectorAll(".star-rating .star").forEach(star=>{
+          star.addEventListener("click",function(){
+            const v = +this.dataset.value;
+            this.parentNode.querySelector("input[name='rating']").value = v;
+            this.parentNode.querySelectorAll(".star")
+                .forEach(s=>s.classList.toggle("selected", +s.dataset.value<=v));
           });
+        });
+        document.querySelectorAll(".difficulty-stars .star").forEach(star=>{
+          star.addEventListener("click",function(){
+            const v = +this.dataset.value;
+            this.parentNode.querySelector("input[name='difficulty']").value = v;
+            this.parentNode.querySelectorAll(".star")
+                .forEach(s=>s.classList.toggle("selected", +s.dataset.value<=v));
+          });
+        });
       })
-      .catch(err => { console.error(err); alert("Error fetching course detail."); });
+      .catch(err=>{
+        console.error("Error fetching course detail:",err);
+        alert("Error fetching course detail.");
+      });
   }
 
   function renderCourseDetail(course, reviews) {
@@ -289,29 +303,29 @@
       <p><strong>Catalog #:</strong> ${course.catalog_nbr}</p>
       <p><strong>AOK:</strong> ${course.aok}</p>
       <p><strong>MOI:</strong> ${course.moi}</p>
-      <p><strong>Professor(s):</strong> ${course.professors || "N/A"}</p>
+      <p><strong>Professor(s):</strong> ${course.professors||"N/A"}</p>
       <hr><h5>Reviews</h5>`;
 
     if (reviews.length) {
-      const sum = (key) => reviews.reduce((s,r) => s + (r[key] || 0), 0);
+      const sum = key=>reviews.reduce((s,r)=>s+(r[key]||0),0);
       html += `<p><strong>Average Rating:</strong> ${(sum("rating")/reviews.length).toFixed(1)} / 5 (${reviews.length})</p>
                <p><strong>Average Difficulty:</strong> ${(sum("difficulty")/reviews.length).toFixed(1)} / 5</p><hr>`;
     } else {
       html += "<p>No reviews yet.</p><hr>";
     }
 
-    reviews.forEach(r => {
+    reviews.forEach(r=>{
       html += `<div class="review">
         <p><strong>Rating:</strong> ${r.rating} / 5 | <strong>Difficulty:</strong> ${r.difficulty} / 5</p>
-        <p>${r.review_text || ""}</p>
+        <p>${r.review_text||""}</p>
         <p><em>${new Date(r.timestamp).toLocaleString()}</em></p>
       </div>`;
     });
 
-    // review form
     html += `<h5>Submit a Review</h5>
-      <form onsubmit="submitReview(event,'${course.id}')">
-        <textarea name="review_text" placeholder="Write your review here..." required style="width:100%;height:80px;"></textarea><br>
+      <form onsubmit="return submitReview(event,'${course.id}')">
+        <textarea name="review_text" placeholder="Write your review here..." required
+                  style="width:100%;height:80px;"></textarea><br>
 
         <label>Overall Rating:</label>
         <div class="star-rating overall-stars" style="font-size:2rem;margin-bottom:10px;">
@@ -331,67 +345,79 @@
   }
 
   function submitReview(event, courseId) {
-    event.preventDefault();
+    event = event||window.event;
+    if (event.preventDefault) event.preventDefault(); else event.returnValue = false;
     const form = event.target;
     const data = {
-      course_id: courseId,
+      course_id:   courseId,
       review_text: form.review_text.value,
-      rating: parseInt(form.rating.value),
-      difficulty: parseInt(form.difficulty.value)
+      rating:      parseInt(form.rating.value,10),
+      difficulty:  parseInt(form.difficulty.value,10)
     };
-
-    fetch("/api/reviews", {
-      method: "POST",
-      headers: {"Content-Type":"application/json"},
-      body: JSON.stringify(data)
+    fetch("/api/reviews",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify(data)
     })
-    .then(r => {
-      if (!r.ok) throw new Error("Failed to submit review.");
-      return r.json();
+    .then(async response=>{
+      const text = await response.text().catch(()=>"<no body>");
+      console.log("POST /api/reviews →",response.status,text);
+      if(!response.ok){
+        let msg=`Server returned ${response.status}`;
+        try{msg=JSON.parse(text).error||msg}catch{}
+        throw new Error(msg);
+      }
+      return JSON.parse(text);
     })
-    .then(() => {
+    .then(()=>{
       alert("Review submitted successfully!");
-      // refresh detail view
-      const row = document.querySelector(`tr.course-row[data-course-id="${courseId}"]`);
-      if (row && row.nextElementSibling && row.nextElementSibling.classList.contains("detail-row")) {
+      const row=document.querySelector(`tr.course-row[data-course-id="${courseId}"]`);
+      if(row && row.nextElementSibling?.classList.contains("detail-row")){
         row.parentNode.removeChild(row.nextElementSibling);
       }
-      toggleCourseDetail(row, courseId);
+      toggleCourseDetail(null, row, courseId);
     })
-    .catch(err => { console.error(err); alert("Error submitting review."); });
+    .catch(err=>{
+      console.error("Review submission error:",err);
+      alert("Error submitting review: "+err.message);
+    });
+    return false;
   }
 
   /* ---------- Professor Autocomplete ------------------------------------ */
-  const professorInput = document.getElementById("professor");
-  const suggestionsDiv = document.getElementById("professor-suggestions");
+  const professorInput=document.getElementById("professor");
+  const suggestionsDiv=document.getElementById("professor-suggestions");
 
-  professorInput.addEventListener("input", () => {
-    const q = professorInput.value.trim();
-    if (q.length < 2) { suggestionsDiv.innerHTML = ""; return; }
+  professorInput.addEventListener("input",()=>{
+    const q=professorInput.value.trim();
+    if(q.length<2){suggestionsDiv.innerHTML="";return;}
     fetch(`/api/professors?query=${encodeURIComponent(q)}`)
-      .then(r => r.json())
-      .then(list => {
-        suggestionsDiv.innerHTML = "";
-        list.forEach(({ professor }) => {
-          const div = document.createElement("div");
+      .then(r=>r.json())
+      .then(list=>{
+        suggestionsDiv.innerHTML="";
+        list.forEach(({professor})=>{
+          const div=document.createElement("div");
           div.classList.add("suggestion-item");
-          div.textContent = professor;
-          div.onclick = () => { professorInput.value = professor; suggestionsDiv.innerHTML = ""; };
+          div.textContent=professor;
+          div.onclick=()=>{
+            professorInput.value=professor;
+            suggestionsDiv.innerHTML="";
+          };
           suggestionsDiv.appendChild(div);
         });
       })
-      .catch(err => console.error("Error fetching suggestions", err));
+      .catch(err=>console.error("Error fetching suggestions",err));
   });
 
   /* ---------- Form / initial load --------------------------------------- */
-  document.getElementById("courseForm").addEventListener("submit", e => {
+  document.getElementById("courseForm").addEventListener("submit",e=>{
     e.preventDefault();
-    document.querySelectorAll("tr.detail-row").forEach(r => r.remove());
+    document.querySelectorAll("tr.detail-row").forEach(r=>r.remove());
     fetchCourses(1);
     fetchFavorites();
   });
 
-  window.onload = () => {
+  window.onload=()=>{
     fetchFavorites();
     fetchCourses(1);
   };

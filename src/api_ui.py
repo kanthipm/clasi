@@ -381,40 +381,71 @@ def api_professors():
 # ---------- API: /api/reviews ----------------------------------------------
 @app.route("/api/reviews", methods=["GET", "POST"])
 def api_reviews():
+    # POST: submit a new review
     if request.method == "POST":
-        data = request.get_json()
+        data        = request.get_json()
         course_id   = data.get("course_id")
         review_text = data.get("review_text")
         rating      = data.get("rating")
         difficulty  = data.get("difficulty")
         user_id     = session.get("user_id")
         timestamp   = datetime.datetime.now().isoformat()
-        if not (course_id and user_id):
+
+        if not course_id or not user_id:
             return jsonify({"error": "course_id and user_id are required"}), 400
+
         conn = connect_db()
         conn.execute(
-            """INSERT INTO reviews
+            """
+            INSERT INTO reviews
                (course_id, user_id, review_text, rating, difficulty, timestamp)
-               VALUES (?, ?, ?, ?, ?, ?)""",
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
             (course_id, user_id, review_text, rating, difficulty, timestamp)
         )
         conn.commit()
         conn.close()
+
         return jsonify({"success": True}), 201
 
+    # GET: fetch reviews (optionally filtered by course_id)
     course_id = request.args.get("course_id")
-    conn = connect_db()
+
+    # Use _get_conn so we get sqlite3.Row objects
+    conn = _get_conn()
     if course_id:
-        rows = conn.execute(
-            "SELECT * FROM reviews WHERE course_id=? ORDER BY timestamp DESC",
+        cursor = conn.execute(
+            """
+            SELECT id, course_id, user_id, review_text,
+                   rating, difficulty, timestamp
+              FROM reviews
+             WHERE course_id = ?
+             ORDER BY timestamp DESC
+            """,
             (course_id,)
-        ).fetchall()
+        )
     else:
-        rows = conn.execute(
-            "SELECT * FROM reviews ORDER BY timestamp DESC"
-        ).fetchall()
+        cursor = conn.execute(
+            """
+            SELECT id, course_id, user_id, review_text,
+                   rating, difficulty, timestamp
+              FROM reviews
+             ORDER BY timestamp DESC
+            """
+        )
+    rows = cursor.fetchall()
     conn.close()
-    return jsonify([dict(r) for r in rows])
+
+    # Build a list of dicts by iterating over sqlite3.Row.keys()
+    reviews = []
+    for row in rows:
+        review = {}
+        for col in row.keys():
+            review[col] = row[col]
+        reviews.append(review)
+
+    return jsonify(reviews)
+
 
 # ---------- API: Favorites --------------------------------------------------
 @app.route("/api/favorites", methods=["GET"])
