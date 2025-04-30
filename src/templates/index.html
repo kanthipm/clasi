@@ -1,10 +1,13 @@
 {% extends "base.html" %}
 {% block title %}CLASI - Course Listings{% endblock %}
+
 {% block content %}
 <script>
   const currentUserId = {{ current_user_id }};
 </script>
+
 <style>
+  /* ---------- Layout & Form ------------------------------------------------ */
   form.search-form {
     display: flex;
     flex-wrap: wrap;
@@ -12,125 +15,76 @@
     align-items: flex-start;
     margin-bottom: 1.5rem;
   }
-  .form-group {
-    flex: 1 0 200px;
-    position: relative;
+  .form-group       { flex: 1 0 200px; position: relative; }
+  label             { display:block; margin-bottom:0.25rem; font-weight:bold; }
+  select,
+  input[type="text"],
+  input[type="number"] {
+    width:100%; padding:0.5rem; font-size:1rem;
+    border:1px solid #ccc; border-radius:4px;
   }
-  label {
-    display: block;
-    margin-bottom: 0.25rem;
-    font-weight: bold;
-  }
-  select, input[type="text"] {
-    width: 100%;
-    padding: 0.5rem;
-    font-size: 1rem;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-  }
-  .checkbox-group {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
-  .checkbox-group label {
-    display: inline-block;
-    font-weight: normal;
-    margin-right: 0.5rem;
-  }
+
+  .checkbox-group        { display:flex; flex-wrap:wrap; gap:0.5rem; }
+  .checkbox-group label  { font-weight:normal; margin-right:0.5rem; }
+
   button {
-    padding: 0.5rem 1rem;
-    font-size: 1rem;
-    background-color: #007bff;
-    color: #fff;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
+    padding:0.5rem 1rem; font-size:1rem;
+    background:#007bff; color:#fff;
+    border:none; border-radius:4px; cursor:pointer;
   }
-  button:hover {
-    background-color: #0056b3;
+  button:hover { background:#0056b3; }
+
+  /* ---------- Table & Rows ------------------------------------------------- */
+  table              { border-collapse:collapse; width:100%; margin-top:1rem; }
+  table, th, td      { border:1px solid #ccc; }
+  th, td             { padding:0.5rem; text-align:left; }
+  .course-row        { cursor:pointer; }
+  .detail-row        { background:#f9f9f9; }
+  .favorite-btn      { cursor:pointer; font-size:1.2rem; margin-right:5px; }
+
+  /* ---------- Autocomplete ------------------------------------------------- */
+  .suggestions       {
+    border:1px solid #ccc; background:#fff;
+    position:absolute; top:100%; left:0; right:0; z-index:1000;
+    max-height:150px; overflow-y:auto;
   }
-  table {
-    border-collapse: collapse;
-    width: 100%;
-    margin-top: 1rem;
-  }
-  table, th, td {
-    border: 1px solid #ccc;
-  }
-  th, td {
-    padding: 0.5rem;
-    text-align: left;
-  }
-  .course-row {
-    cursor: pointer;
-  }
-  .detail-row {
-    background-color: #f9f9f9;
-  }
-  .favorite-btn {
-    cursor: pointer;
-    font-size: 1.2rem;
-    margin-right: 5px;
-  }
-  /* Styles for autocomplete suggestions */
-  .suggestions {
-    border: 1px solid #ccc;
-    background-color: #fff;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    z-index: 1000;
-    max-height: 150px;
-    overflow-y: auto;
-  }
-  .suggestion-item {
-    padding: 0.5rem;
-    cursor: pointer;
-  }
-  .suggestion-item:hover {
-    background-color: #f0f0f0;
-  }
-  /* Styles for review section */
-  .review-section {
-    padding: 1rem;
-    border-top: 1px solid #ccc;
-  }
-  .review {
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid #ddd;
-  }
+  .suggestion-item   { padding:0.5rem; cursor:pointer; }
+  .suggestion-item:hover { background:#f0f0f0; }
+
+  /* ---------- Reviews ------------------------------------------------------ */
+  .review-section    { padding:1rem; border-top:1px solid #ccc; }
+  .review            { margin-bottom:0.75rem; padding-bottom:0.5rem; border-bottom:1px solid #ddd; }
+
   .star-rating {
-    display: inline-flex;
-    flex-direction: row-reverse;
-    font-size: 1.8rem;
-    justify-content: center;
-    padding: 0.5rem 0;
+    display:inline-flex; flex-direction:row-reverse;
+    font-size:1.8rem; justify-content:center; padding:0.5rem 0;
   }
-
-  .star-rating .star {
-    cursor: pointer;
-    color: #ccc;
-    transition: color 0.2s;
-  }
-
+  .star-rating .star       { cursor:pointer; color:#ccc; transition:color 0.2s; }
   .star-rating .star:hover,
-  .star-rating .star:hover ~ .star {
-    color: gold;
-  }
-
+  .star-rating .star:hover ~ .star,
   .star-rating .star.selected,
-  .star-rating .star.selected ~ .star {
-    color: gold;
-  }
+  .star-rating .star.selected ~ .star { color:gold; }
 
+  /* ---------- Pager (Google-style) ---------------------------------------- */
+  #pager               { display:flex; justify-content:center; flex-wrap:wrap; gap:4px; margin-top:1rem; }
+  #pager button        {
+    min-width:34px; height:34px;
+    border:1px solid #dfe1e5;
+    background:#fff; color:#202124;
+    border-radius:50%;
+    font-size:0.9rem; cursor:pointer;
+    transition:background 0.2s, box-shadow 0.2s;
+  }
+  #pager button:hover:not(:disabled) { background:#f1f3f4; }
+  #pager button:disabled             { background:#1a73e8; border-color:#1a73e8; color:#fff; cursor:default; }
+  #pager span.ellipsis {
+    display:inline-block; width:34px; text-align:center; color:#5f6368;
+  }
 </style>
 
 <div class="container">
+  <!-- --------------------------- Search Form ---------------------------- -->
   <form id="courseForm" class="search-form">
-    <!-- Subject Dropdown -->
     <div class="form-group">
       <label for="subject">Select Subject:</label>
       <select id="subject" name="subject">
@@ -141,267 +95,193 @@
       </select>
     </div>
 
-    <!-- Min Catalog # -->
     <div class="form-group">
       <label for="min_nbr">Min Catalog #:</label>
-      <input
-        type="number"
-        id="min_nbr"
-        name="min_nbr"
-        min="0"
-        placeholder="e.g. 200"
-      />
+      <input type="number" id="min_nbr" name="min_nbr" min="0" placeholder="e.g. 200"/>
     </div>
 
-    <!-- Max Catalog # -->
     <div class="form-group">
       <label for="max_nbr">Max Catalog #:</label>
-      <input
-        type="number"
-        id="max_nbr"
-        name="max_nbr"
-        min="0"
-        placeholder="e.g. 400"
-      />
+      <input type="number" id="max_nbr" name="max_nbr" min="0" placeholder="e.g. 400"/>
     </div>
 
-
-    <!-- Areas of Knowledge Checkboxes -->
     <div class="form-group">
       <label>Area(s) of Knowledge:</label>
       <div class="checkbox-group">
-        <label><input type="checkbox" name="aok" value="ALP"> ALP</label>
-        <label><input type="checkbox" name="aok" value="CZ"> CZ</label>
-        <label><input type="checkbox" name="aok" value="NS"> NS</label>
-        <label><input type="checkbox" name="aok" value="QS"> QS</label>
-        <label><input type="checkbox" name="aok" value="SS"> SS</label>
+        {% for code in ["ALP","CZ","NS","QS","SS"] %}
+          <label><input type="checkbox" name="aok" value="{{ code }}"> {{ code }}</label>
+        {% endfor %}
       </div>
     </div>
 
-    <!-- Modes of Inquiry Checkboxes -->
     <div class="form-group">
       <label>Mode(s) of Inquiry:</label>
       <div class="checkbox-group">
-        <label><input type="checkbox" name="moi" value="CCI"> CCI</label>
-        <label><input type="checkbox" name="moi" value="EI"> EI</label>
-        <label><input type="checkbox" name="moi" value="STS"> STS</label>
-        <label><input type="checkbox" name="moi" value="FL"> FL</label>
-        <label><input type="checkbox" name="moi" value="R"> R</label>
-        <label><input type="checkbox" name="moi" value="W"> W</label>
+        {% for code in ["CCI","EI","STS","FL","R","W"] %}
+          <label><input type="checkbox" name="moi" value="{{ code }}"> {{ code }}</label>
+        {% endfor %}
       </div>
     </div>
 
-    <!-- Professor Search with Autocomplete -->
     <div class="form-group">
       <label for="professor">Professor Search:</label>
       <input type="text" id="professor" name="professor" placeholder="Enter professor name" autocomplete="off">
       <div id="professor-suggestions" class="suggestions"></div>
     </div>
 
-    <div class="form-group" style="align-self: flex-end;">
+    <div class="form-group" style="align-self:flex-end;">
       <button type="submit">Fetch Courses</button>
     </div>
   </form>
+
+  <!-- --------------------------- Results & Pager ------------------------- -->
   <div id="results"></div>
-  <div id="pager" style="margin-top:1rem;"></div>
+  <div id="pager"></div>
 </div>
 
 <script>
+  /* ---------- Globals ---------------------------------------------------- */
   let favoritesList = [];
   let currentPage   = 1;
-  const PER_PAGE    = 20;   // keep in sync with the API default
-  let totalPages    = 1;    // API tells us later
+  const PER_PAGE    = 20;
+  let totalPages    = 1;
 
-  // Immediately update heart icon on toggle.
+  /* ---------- Favorites (heart toggle) ---------------------------------- */
   function toggleFavorite(event, courseId) {
     event.stopPropagation();
-    let heartSpan = event.target;
-    let isFavorited = heartSpan.textContent.trim() === "❤️";
-    heartSpan.textContent = isFavorited ? "🤍" : "❤️";
-    if (isFavorited) {
-      fetch("/api/favorites", {
-        method: "DELETE",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ course_id: courseId })
-      })
-      .then(response => response.json())
-      .then(result => {
-        fetchFavorites();
-        fetchCourses();
-      })
-      .catch(err => {
-        console.error(err);
-        heartSpan.textContent = "❤️"; // revert on error
-      });
-    } else {
-      fetch("/api/favorites", {
-        method: "POST",
-        headers: {"Content-Type": "application/json"},
-        body: JSON.stringify({ course_id: courseId })
-      })
-      .then(response => response.json())
-      .then(result => {
-        fetchFavorites();
-        fetchCourses();
-      })
-      .catch(err => {
-        console.error(err);
-        heartSpan.textContent = "🤍"; // revert on error
-      });
-    }
+    const heart = event.target;
+    const wasFav = heart.textContent.trim() === "❤️";
+    heart.textContent = wasFav ? "🤍" : "❤️";
+
+    const method = wasFav ? "DELETE" : "POST";
+    fetch("/api/favorites", {
+      method,
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({ course_id: courseId })
+    })
+    .then(r => r.json())
+    .then(() => { fetchFavorites(); fetchCourses(currentPage); })
+    .catch(err => { console.error(err); heart.textContent = wasFav ? "❤️" : "🤍"; });
   }
 
-  // Fetch favorites for current user.
   function fetchFavorites() {
     fetch("/api/favorites")
-      .then(response => response.json())
-      .then(data => {
-        favoritesList = data.map(course => course.id);
-      })
+      .then(r => r.json())
+      .then(data => { favoritesList = data.map(c => c.id); })
       .catch(err => console.error("Error fetching favorites:", err));
   }
 
-    // Fetch courses from /api/courses, including paging & filters.
+  /* ---------- Courses (paged fetch) ------------------------------------- */
   function fetchCourses(page = 1) {
-    currentPage = page;                 // remember selected page
-    const params = new URLSearchParams({
-      page:      currentPage,
-      per_page:  PER_PAGE
-    });
+    currentPage = page;
+    const params = new URLSearchParams({ page, per_page: PER_PAGE });
 
-    // -------- existing filter assembly --------
-    const subject   = document.getElementById('subject').value.trim();
-    const professor = document.getElementById('professor').value.trim();
-
+    const subject   = document.getElementById("subject").value.trim();
+    const professor = document.getElementById("professor").value.trim();
     if (subject)   params.append("subject", subject);
     if (professor) params.append("professor", professor);
 
-    Array.from(document.querySelectorAll('input[name="aok"]:checked'))
-        .forEach(cb => params.append("aok", cb.value));
-    Array.from(document.querySelectorAll('input[name="moi"]:checked'))
-        .forEach(cb => params.append("moi", cb.value));
+    document.querySelectorAll("input[name='aok']:checked")
+      .forEach(cb => params.append("aok", cb.value));
+    document.querySelectorAll("input[name='moi']:checked")
+      .forEach(cb => params.append("moi", cb.value));
 
-    const minNbr = document.getElementById('min_nbr').value;
-    const maxNbr = document.getElementById('max_nbr').value;
+    const minNbr = document.getElementById("min_nbr").value;
+    const maxNbr = document.getElementById("max_nbr").value;
     if (minNbr) params.append("min_nbr", minNbr);
     if (maxNbr) params.append("max_nbr", maxNbr);
-    // ------------------------------------------
 
     fetch(`/api/courses?${params.toString()}`)
       .then(r => r.json())
       .then(data => {
-          totalPages = data.total_pages;
-          renderCourseTable(data.courses);   // unwrap!
-          renderPager();                     // draw page buttons
+        totalPages = data.total_pages;
+        renderCourseTable(data.courses);
+        renderPager();
       })
-      .catch(err => {
-        console.error(err);
-        alert("Error fetching courses.");
-      });
+      .catch(err => { console.error(err); alert("Error fetching courses."); });
   }
 
-  function renderCourseTable(courseList) {   // was 'courses'
-    const resultsDiv = document.getElementById('results');
-    if (!courseList || courseList.length === 0) {
-        resultsDiv.innerHTML = "<p>No courses found.</p>";
-        return;
-    }
+  /* ---------- Renderers -------------------------------------------------- */
+  function renderCourseTable(courseList) {
+    const resDiv = document.getElementById("results");
+    if (!courseList || courseList.length === 0) { resDiv.innerHTML = "<p>No courses found.</p>"; return; }
 
-    let html = "<table><tr><th></th><th>ID</th><th>Subject</th><th>Catalog #</th><th>Title</th><th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>";
-    courseList.forEach(course => {
-        const heartIcon = favoritesList.includes(course.id) ? "❤️" : "🤍";
-        html += `
-          <tr class="course-row" data-course-id="${course.id}" onclick="toggleCourseDetail(this, '${course.id}')">
-            <td><span class="favorite-btn" onclick="toggleFavorite(event, '${course.id}')">${heartIcon}</span></td>
-            <td>${course.id}</td>
-            <td>${course.subject}</td>
-            <td>${course.catalog_nbr.trim()}</td>
-            <td>${course.title}</td>
-            <td>${course.aok || ""}</td>
-            <td>${course.moi || ""}</td>
-            <td>${course.professors || ""}</td>
-          </tr>`;
+    let html = `<table>
+      <tr><th></th><th>ID</th><th>Subject</th><th>Catalog #</th><th>Title</th><th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>`;
+    courseList.forEach(c => {
+      const heart = favoritesList.includes(c.id) ? "❤️" : "🤍";
+      html += `<tr class="course-row" data-course-id="${c.id}" onclick="toggleCourseDetail(this,'${c.id}')">
+        <td><span class="favorite-btn" onclick="toggleFavorite(event,'${c.id}')">${heart}</span></td>
+        <td>${c.id}</td><td>${c.subject}</td><td>${(c.catalog_nbr || '').trim()}</td>
+        <td>${c.title}</td><td>${c.aok || ""}</td><td>${c.moi || ""}</td><td>${c.professors || ""}</td>
+      </tr>`;
     });
     html += "</table>";
-    resultsDiv.innerHTML = html;
+    resDiv.innerHTML = html;
   }
 
   function renderPager() {
-    const pager = document.getElementById('pager');
+    const pager = document.getElementById("pager");
     if (totalPages <= 1) { pager.innerHTML = ""; return; }
 
     const makeBtn = (n, label = n) =>
       `<button ${n === currentPage ? "disabled" : ""} onclick="fetchCourses(${n})">${label}</button>`;
 
-    let html = makeBtn(Math.max(1, currentPage - 1), "« Prev");
+    let html = makeBtn(Math.max(1, currentPage - 1), "‹");
 
     for (let n = 1; n <= totalPages; n++) {
-        if (n === 1 || n === totalPages || Math.abs(n - currentPage) <= 2) {
-            html += makeBtn(n);
-        } else if (Math.abs(n - currentPage) === 3) {
-            html += "<span style='margin:0 .4rem;'>…</span>";
-        }
+      if (n === 1 || n === totalPages || Math.abs(n - currentPage) <= 2) {
+        html += makeBtn(n);
+      } else if (Math.abs(n - currentPage) === 3) {
+        html += `<span class="ellipsis">…</span>`;
+        n = (n < currentPage) ? currentPage - 3 : totalPages - 1; // skip hidden range
+      }
     }
-    html += makeBtn(Math.min(totalPages, currentPage + 1), "Next »");
+
+    html += makeBtn(Math.min(totalPages, currentPage + 1), "›");
     pager.innerHTML = html;
   }
 
+  /* ---------- Detail Row & Reviews -------------------------------------- */
+  function toggleCourseDetail(rowEl, courseId) {
+    if (event.target.classList.contains("favorite-btn")) return;
 
-
-  // Toggle course detail: expand/collapse detail row.
-  function toggleCourseDetail(rowElement, courseId) {
-    if(event.target.classList.contains("favorite-btn")) return;
-    if(rowElement.nextElementSibling && rowElement.nextElementSibling.classList.contains('detail-row')) {
-      rowElement.parentNode.removeChild(rowElement.nextElementSibling);
+    // collapse if already open
+    if (rowEl.nextElementSibling && rowEl.nextElementSibling.classList.contains("detail-row")) {
+      rowEl.parentNode.removeChild(rowEl.nextElementSibling);
       return;
     }
+
     fetch(`/api/course/${courseId}`)
-      .then(response => response.json())
+      .then(r => r.json())
       .then(courseDetail => {
         fetch(`/api/reviews?course_id=${courseId}`)
-          .then(response => response.json())
+          .then(r => r.json())
           .then(reviews => {
             const detailHtml = renderCourseDetail(courseDetail, reviews);
-            const detailRow = document.createElement("tr");
+            const detailRow  = document.createElement("tr");
             detailRow.classList.add("detail-row");
-            const detailCell = document.createElement("td");
-            detailCell.colSpan = 8;
-            detailCell.innerHTML = detailHtml;
-            detailRow.appendChild(detailCell);
-            rowElement.parentNode.insertBefore(detailRow, rowElement.nextElementSibling);
-            
+            const cell = document.createElement("td");
+            cell.colSpan = 8;
+            cell.innerHTML = detailHtml;
+            detailRow.appendChild(cell);
+            rowEl.parentNode.insertBefore(detailRow, rowEl.nextElementSibling);
 
-            document.querySelectorAll('.star-rating .star').forEach(star => {
-              star.addEventListener('click', function() {
-                const value = this.getAttribute('data-value');
-                const adjustedValue = 6 - value;
-                const stars = this.parentNode.querySelectorAll('.star');
-                stars.forEach(s => {
-                  s.classList.toggle('selected', s.getAttribute('data-value') >= value);
-                });
-                this.parentNode.querySelector('input[name="rating"]').value = adjustedValue;
-              });
-            });
-            document.querySelectorAll('.difficulty-stars .star').forEach(star => {
-              star.addEventListener('click', function() {
-                const value = this.getAttribute('data-value');
-                const adjustedValue = 6 - value;
-                const stars = Array.from(this.parentNode.children).filter(child => child.classList.contains('star'));
-                stars.forEach(s => {
-                  s.classList.toggle('selected', s.getAttribute('data-value') >= value);
-                });
-                this.parentNode.querySelector('input[name="difficulty"]').value = adjustedValue;
+            // activate star listeners
+            document.querySelectorAll(".star-rating .star").forEach(star => {
+              star.addEventListener("click", function() {
+                const val = this.getAttribute("data-value");
+                const adj = 6 - val;
+                const stars = this.parentNode.querySelectorAll(".star");
+                stars.forEach(s => s.classList.toggle("selected", s.getAttribute("data-value") >= val));
+                this.parentNode.querySelector("input[name='rating'],input[name='difficulty']").value = adj;
               });
             });
           });
       })
-      .catch(err => {
-        console.error(err);
-        alert("Error fetching course detail.");
-      });
+      .catch(err => { console.error(err); alert("Error fetching course detail."); });
   }
 
-  // Render course detail including reviews and review form.
   function renderCourseDetail(course, reviews) {
     let html = `<div>
       <h4>Course Detail for ${course.title} (ID: ${course.id})</h4>
@@ -410,164 +290,108 @@
       <p><strong>AOK:</strong> ${course.aok}</p>
       <p><strong>MOI:</strong> ${course.moi}</p>
       <p><strong>Professor(s):</strong> ${course.professors || "N/A"}</p>
-      <hr>
-      <h5>Reviews</h5>`;
-    if (reviews.length > 0) {
-      const totalRating = reviews.reduce((sum, r) => sum + (r.rating || 0), 0);
-      const totalDiff   = reviews.reduce((sum, r) => sum + (r.difficulty || 0), 0);
-      const avgRating   = (totalRating / reviews.length).toFixed(1);
-      const avgDiff     = (totalDiff   / reviews.length).toFixed(1);
-      html += `
-        <p><strong>Average Rating:</strong> ${avgRating} / 5 (${reviews.length} review${reviews.length>1?'s':''})</p>
-        <p><strong>Average Difficulty:</strong> ${avgDiff} / 5</p>
-        <hr>
-      `;
-    }
-    if(reviews.length === 0) {
-      html += "<p>No reviews yet.</p>";
+      <hr><h5>Reviews</h5>`;
+
+    if (reviews.length) {
+      const sum = (key) => reviews.reduce((s,r) => s + (r[key] || 0), 0);
+      html += `<p><strong>Average Rating:</strong> ${(sum("rating")/reviews.length).toFixed(1)} / 5 (${reviews.length})</p>
+               <p><strong>Average Difficulty:</strong> ${(sum("difficulty")/reviews.length).toFixed(1)} / 5</p><hr>`;
     } else {
-      reviews.forEach(review => {
-        html += `<div class="review">
-          <p><strong>Rating:</strong> ${review.rating} / 5</p>
-          <p><strong>Difficulty:</strong> ${review.difficulty} / 5</p>
-          <p>${review.review_text || ""}</p>
-          <p><em>${new Date(review.timestamp).toLocaleString()}</em></p>
-        </div>`;
-      });
+      html += "<p>No reviews yet.</p><hr>";
     }
-    html += `<hr>
-      <h5>Submit a Review</h5>
-      <form onsubmit="submitReview(event, '${course.id}')">
-        <textarea name="review_text" placeholder="Write your review here..." required style="width:100%; height:80px;"></textarea><br>
+
+    reviews.forEach(r => {
+      html += `<div class="review">
+        <p><strong>Rating:</strong> ${r.rating} / 5 | <strong>Difficulty:</strong> ${r.difficulty} / 5</p>
+        <p>${r.review_text || ""}</p>
+        <p><em>${new Date(r.timestamp).toLocaleString()}</em></p>
+      </div>`;
+    });
+
+    // review form
+    html += `<h5>Submit a Review</h5>
+      <form onsubmit="submitReview(event,'${course.id}')">
+        <textarea name="review_text" placeholder="Write your review here..." required style="width:100%;height:80px;"></textarea><br>
 
         <label>Overall Rating:</label>
-        <div class="star-rating overall-stars" style="font-size: 2rem; margin-bottom: 10px;">
-          <span class="star" data-value="1">☆</span>
-          <span class="star" data-value="2">☆</span>
-          <span class="star" data-value="3">☆</span>
-          <span class="star" data-value="4">☆</span>
-          <span class="star" data-value="5">☆</span>
+        <div class="star-rating overall-stars" style="font-size:2rem;margin-bottom:10px;">
+          ${[1,2,3,4,5].map(v=>`<span class="star" data-value="${v}">☆</span>`).join("")}
           <input type="hidden" name="rating" required>
         </div>
 
         <label>Difficulty Rating:</label>
-        <div class="star-rating difficulty-stars" style="font-size: 2rem; margin-bottom: 10px;">
-          <span class="star" data-value="1">☆</span>
-          <span class="star" data-value="2">☆</span>
-          <span class="star" data-value="3">☆</span>
-          <span class="star" data-value="4">☆</span>
-          <span class="star" data-value="5">☆</span>
+        <div class="star-rating difficulty-stars" style="font-size:2rem;margin-bottom:10px;">
+          ${[1,2,3,4,5].map(v=>`<span class="star" data-value="${v}">☆</span>`).join("")}
           <input type="hidden" name="difficulty" required>
         </div>
 
         <button type="submit">Submit Review</button>
-      </form>
-    </div>`;
-
+      </form></div>`;
     return html;
   }
 
-  
-
-  // Submit a review.
   function submitReview(event, courseId) {
-  event.preventDefault();
-  const form = event.target;
-  const reviewText = form.review_text.value;
-  const rating = form.rating.value;
-  const difficulty = form.difficulty.value;
-  const data = {
-    course_id: courseId,
-    review_text: reviewText,
-    rating: parseInt(rating),
-    difficulty: parseInt(difficulty)
-  };
-  fetch("/api/reviews", {
-    method: "POST",
-    headers: {"Content-Type": "application/json"},
-    body: JSON.stringify(data)
-  })
-  .then(response => {
-    if(!response.ok) throw new Error("Failed to submit review.");
-    return response.json();
-  })
-  .then(result => {
-    alert("Review submitted successfully!");
-    const row = document.querySelector(`tr.course-row[data-course-id="${courseId}"]`);
-    if (row) {
-        // Remove any open detail row first
-        if (row.nextElementSibling && row.nextElementSibling.classList.contains('detail-row')) {
-            row.parentNode.removeChild(row.nextElementSibling);
-        }
-        // Fetch updated reviews + redisplay
-        fetch(`/api/reviews?course_id=${courseId}`)
-          .then(response => response.json())
-          .then(reviews => {
-              fetch(`/api/course/${courseId}`)
-                .then(response => response.json())
-                .then(courseDetail => {
-                    const detailHtml = renderCourseDetail(courseDetail, reviews);
-                    const detailRow = document.createElement("tr");
-                    detailRow.classList.add("detail-row");
-                    const detailCell = document.createElement("td");
-                    detailCell.colSpan = 8;
-                    detailCell.innerHTML = detailHtml;
-                    detailRow.appendChild(detailCell);
-                    row.parentNode.insertBefore(detailRow, row.nextElementSibling);
-                });
-          });
-    }
-})
+    event.preventDefault();
+    const form = event.target;
+    const data = {
+      course_id: courseId,
+      review_text: form.review_text.value,
+      rating: parseInt(form.rating.value),
+      difficulty: parseInt(form.difficulty.value)
+    };
 
-  .catch(err => {
-    console.error("Error during actual POST:", err);
-    alert("Error submitting review to server.");
-  });
-}
+    fetch("/api/reviews", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify(data)
+    })
+    .then(r => {
+      if (!r.ok) throw new Error("Failed to submit review.");
+      return r.json();
+    })
+    .then(() => {
+      alert("Review submitted successfully!");
+      // refresh detail view
+      const row = document.querySelector(`tr.course-row[data-course-id="${courseId}"]`);
+      if (row && row.nextElementSibling && row.nextElementSibling.classList.contains("detail-row")) {
+        row.parentNode.removeChild(row.nextElementSibling);
+      }
+      toggleCourseDetail(row, courseId);
+    })
+    .catch(err => { console.error(err); alert("Error submitting review."); });
+  }
 
+  /* ---------- Professor Autocomplete ------------------------------------ */
+  const professorInput = document.getElementById("professor");
+  const suggestionsDiv = document.getElementById("professor-suggestions");
 
-  // Professor autocomplete functionality.
-  var professorInput = document.getElementById('professor');
-  var suggestionsDiv = document.getElementById('professor-suggestions');
-
-  professorInput.addEventListener('input', function() {
-    var query = professorInput.value.trim();
-    if(query.length < 2) {
-      suggestionsDiv.innerHTML = "";
-      return;
-    }
-    fetch(`/api/professors?query=${encodeURIComponent(query)}`)
-      .then(response => response.json())
-      .then(data => {
+  professorInput.addEventListener("input", () => {
+    const q = professorInput.value.trim();
+    if (q.length < 2) { suggestionsDiv.innerHTML = ""; return; }
+    fetch(`/api/professors?query=${encodeURIComponent(q)}`)
+      .then(r => r.json())
+      .then(list => {
         suggestionsDiv.innerHTML = "";
-        if(data.length > 0){
-          data.forEach(function(name){
-            var div = document.createElement('div');
-            div.classList.add('suggestion-item');
-            div.textContent = name;
-            div.addEventListener('click', function(){
-              professorInput.value = name;
-              suggestionsDiv.innerHTML = "";
-            });
-            suggestionsDiv.appendChild(div);
-          });
-        }
+        list.forEach(({ professor }) => {
+          const div = document.createElement("div");
+          div.classList.add("suggestion-item");
+          div.textContent = professor;
+          div.onclick = () => { professorInput.value = professor; suggestionsDiv.innerHTML = ""; };
+          suggestionsDiv.appendChild(div);
+        });
       })
-      .catch(err => {
-        console.error("Error fetching suggestions", err);
-      });
+      .catch(err => console.error("Error fetching suggestions", err));
   });
 
-  // Attach fetchCourses to form submit.
-  document.getElementById('courseForm').addEventListener('submit', function(e) {
+  /* ---------- Form / initial load --------------------------------------- */
+  document.getElementById("courseForm").addEventListener("submit", e => {
     e.preventDefault();
-    document.querySelectorAll("tr.detail-row").forEach(row => row.remove());
+    document.querySelectorAll("tr.detail-row").forEach(r => r.remove());
     fetchCourses(1);
     fetchFavorites();
   });
 
-  // Initial load.
-  window.onload = function() {
+  window.onload = () => {
     fetchFavorites();
     fetchCourses(1);
   };
