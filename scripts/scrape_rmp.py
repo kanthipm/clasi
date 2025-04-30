@@ -1,106 +1,207 @@
 #!/usr/bin/env python3
 import os
 import sys
-import re
 import time
-from tqdm import tqdm
+import random
+import threading
+import sqlite3
+from itertools import islice
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from selenium import webdriver
+from selenium.webdriver.common.by import By
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.support.ui import WebDriverWait
+from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import (
+    TimeoutException,
+    NoSuchElementException,
+    WebDriverException,
+)
+from webdriver_manager.chrome import ChromeDriverManager
 
-# allow import of your app’s db module
+# ─── Allow import of your app’s db module ─────────────────────────────────────
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "src")))
 from db import connect_db
 
-# RateMyProfessor-Database-APIs client
-import RateMyProfessor_Database_APIs as rmpdb
+DUKE_SCHOOL_ID = "1350"
+NUM_WORKERS    = 3      # Number of parallel threads
+CHUNK_SIZE     = 200    # Professors per thread (adjust for balance)
+DB_PATH        = os.path.abspath(os.path.join(os.path.dirname(__file__),
+                                              "..", "courses.db"))
 
-DUKE_SCHOOL_ID = "1350"  # Duke University on RMP
+# Lock to serialize SQLite writes
+db_lock = threading.Lock()
 
-# regex patterns to parse repr(Professor_Gist)
-_PAT_ID          = re.compile(r"Professor_ID *: *(\d+)")
-_PAT_AVG_RATING  = re.compile(r"Avg Rating *: *([\d.]+)")
-_PAT_AVG_DIFF    = re.compile(r"Avg Difficulty *: *([\d.]+)")
-_PAT_NUM_RATINGS = re.compile(r"Num Ratings *: *(\d+)")
-_PAT_WOULD_TAKE  = re.compile(r"Would Take Again *: *(-?\d+)")
+def init_driver():
+    """Create one headless Chrome instance blocking images/stylesheets."""
+    options = webdriver.ChromeOptions()
+    options.add_argument("--headless")
+    options.add_argument("--disable-gpu")
+    options.page_load_strategy = "eager"
+    prefs = {
+        "profile.managed_default_content_settings.images":      2,
+        "profile.managed_default_content_settings.stylesheets": 2,
+        "profile.managed_default_content_settings.fonts":       2,
+    }
+    options.add_experimental_option("prefs", prefs)
+    driver = webdriver.Chrome(
+        service=Service(ChromeDriverManager().install()),
+        options=options
+    )
+    driver.set_page_load_timeout(10)
+    driver.implicitly_wait(5)
+    return driver
 
-def parse_professor_repr(prof) -> dict:
-    """
-    Extract name, ID, and metrics from repr(prof).
-    """
-    rep = repr(prof)
-    # name: between 'Professor(' and first comma
-    name = rep.split("Professor(", 1)[1].split(",", 1)[0].strip()
-    # id
-    m = _PAT_ID.search(rep)
-    pid = int(m.group(1)) if m else None
-    # metrics
-    ar = _PAT_AVG_RATING.search(rep)
-    ad = _PAT_AVG_DIFF.search(rep)
-    nr = _PAT_NUM_RATINGS.search(rep)
-    wt = _PAT_WOULD_TAKE.search(rep)
+def get_text(elem, sel):
+    try:
+        return elem.find_element(By.CSS_SELECTOR, sel).get_attribute("textContent").strip()
+    except NoSuchElementException:
+        return None
+
+def scrape_professor(driver, name):
+    """Fetch RMP data for one professor using an existing driver."""
+    url = f"https://www.ratemyprofessors.com/search/professors/{DUKE_SCHOOL_ID}?q={name.replace(' ','%20')}"
+    driver.get(url)
+    # click first result
+    first = WebDriverWait(driver, 5).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, 'a[href^="/professor/"]'))
+    )
+    first.click()
+    WebDriverWait(driver, 5).until(EC.presence_of_element_located((By.CSS_SELECTOR, "body")))
+    # overall rating
+    raw_rating = get_text(driver, "div[class*='RatingValue__Numerator']")
+    # feedback items
+    overall_difficulty = None
+    would_take = None
+    for fb in driver.find_elements(By.CSS_SELECTOR, "div[class*='FeedbackItem__StyledFeedbackItem']"):
+        desc = get_text(fb, "div[class*='FeedbackItem__FeedbackDescription']")
+        num  = get_text(fb, "div[class*='FeedbackItem__FeedbackNumber']")
+        if desc and num:
+            d = desc.lower()
+            if "difficulty" in d:
+                overall_difficulty = num
+            elif "would take again" in d:
+                would_take = num
+    # tags
+    tags = ", ".join(
+        t.get_attribute("textContent").strip()
+        for t in driver.find_elements(
+            By.CSS_SELECTOR,
+            "div[class*='TeacherTags__TagsContainer'] span.Tag-bs9vf4-0"
+        )
+    ) or None
+
+    # normalize into DB schema
+    try:
+        avg_rating = float(raw_rating) if raw_rating else None
+    except ValueError:
+        avg_rating = None
+
+    try:
+        avg_diff = float(overall_difficulty) if overall_difficulty else None
+    except ValueError:
+        avg_diff = None
+
+    try:
+        wta = float(would_take.strip("%")) if would_take else None
+    except ValueError:
+        wta = None
+
     return {
-        "professor":            name,
-        "professor_id":         pid,
-        "avg_rating":           float(ar.group(1)) if ar else None,
-        "avg_difficulty":       float(ad.group(1)) if ad else None,
-        "num_ratings":          int(nr.group(1))   if nr else None,
-        "would_take_again_pct": int(wt.group(1))   if wt else None,
+        "professor":           name,
+        "avg_rating":          avg_rating,
+        "avg_difficulty":      avg_diff,
+        "would_take_again_pct": wta,
+        "tags":                tags,
     }
 
-def main():
-    conn = connect_db()
+def init_db():
+    """Ensure professor_ratings table exists."""
+    conn = sqlite3.connect(DB_PATH)
     cur  = conn.cursor()
-
-    # 1) Ensure the ratings table exists with all columns
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS professor_ratings (
+      CREATE TABLE IF NOT EXISTS professor_ratings (
         professor            TEXT PRIMARY KEY,
-        professor_id         INTEGER,
         avg_rating           REAL,
         avg_difficulty       REAL,
-        num_ratings          INTEGER,
-        would_take_again_pct INTEGER
-    )
+        would_take_again_pct REAL,
+        tags                 TEXT
+      );
     """)
     conn.commit()
-
-    # 2) Add professor_id column if missing (migrate older schemas)
-    cols = [row[1] for row in cur.execute("PRAGMA table_info(professor_ratings)").fetchall()]
-    if "professor_id" not in cols:
-        cur.execute("ALTER TABLE professor_ratings ADD COLUMN professor_id INTEGER")
-        conn.commit()
-
-    # 3) Load already-scraped names
-    cur.execute("SELECT professor FROM professor_ratings")
-    scraped = {r[0] for r in cur.fetchall()}
-
-    # 4) Bulk fetch all professors for Duke
-    all_profs = rmpdb.fetch_all_professors_from_a_school(DUKE_SCHOOL_ID)
-    print(f"🎯 {len(scraped)} already scraped; {len(all_profs) - len(scraped)} pending of {len(all_profs)} total")
-
-    # 5) Iterate, parse, and upsert
-    for prof in tqdm(all_profs, desc="RMP scrape", unit="prof"):
-        info = parse_professor_repr(prof)
-        name = info["professor"]
-        if not name or name in scraped or info["professor_id"] is None:
-            continue
-
-        cur.execute("""
-        INSERT OR REPLACE INTO professor_ratings
-          (professor, professor_id, avg_rating, avg_difficulty, num_ratings, would_take_again_pct)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """, (
-            name,
-            info["professor_id"],
-            info["avg_rating"],
-            info["avg_difficulty"],
-            info["num_ratings"],
-            info["would_take_again_pct"]
-        ))
-        conn.commit()
-        scraped.add(name)
-        time.sleep(0.01)  # polite pacing
-
     conn.close()
-    print("✅ All done.")
+
+def get_all_professors():
+    """Read distinct instructor names from your courses.db."""
+    conn = sqlite3.connect(DB_PATH)
+    cur  = conn.cursor()
+    cur.execute("SELECT DISTINCT name_display FROM instructors")
+    names = [r[0] for r in cur.fetchall() if r[0]]
+    conn.close()
+    return names
+
+def get_scraped_set():
+    """Load already-scraped professors from DB."""
+    conn = sqlite3.connect(DB_PATH)
+    cur  = conn.cursor()
+    cur.execute("SELECT professor FROM professor_ratings")
+    done = {r[0] for r in cur.fetchall()}
+    conn.close()
+    return done
+
+def worker_chunk(names_chunk):
+    """Each thread runs this: scrape its chunk of names."""
+    driver = init_driver()
+    for name in names_chunk:
+        try:
+            data = scrape_professor(driver, name)
+        except (TimeoutException, WebDriverException, NoSuchElementException) as e:
+            print(f"❌ {name} error: {e}")
+            time.sleep(random.uniform(2,5))
+            continue
+        # write to DB
+        with db_lock:
+            conn = sqlite3.connect(DB_PATH)
+            cur  = conn.cursor()
+            cur.execute("""
+              INSERT OR REPLACE INTO professor_ratings
+                (professor, avg_rating, avg_difficulty, would_take_again_pct, tags)
+              VALUES (?, ?, ?, ?, ?)
+            """, (
+                data["professor"],
+                data["avg_rating"],
+                data["avg_difficulty"],
+                data["would_take_again_pct"],
+                data["tags"]
+            ))
+            conn.commit()
+            conn.close()
+            print(f"✅ {name}")
+        # polite pause
+        time.sleep(random.uniform(1,3))
+    driver.quit()
+
+def chunked_iterable(iterable, size):
+    """Yield successive chunks from iterable of length size."""
+    it = iter(iterable)
+    for first in it:
+        yield [first] + list(islice(it, size-1))
+
+def main():
+    init_db()
+    all_names = get_all_professors()
+    done      = get_scraped_set()
+    pending   = [n for n in all_names if n not in done]
+    print(f"🎯 {len(done)} done; {len(pending)} to go (out of {len(all_names)})")
+
+    # split pending into NUM_WORKERS chunks
+    chunks = list(chunked_iterable(pending, max(1, len(pending)//NUM_WORKERS)))
+    with ThreadPoolExecutor(max_workers=NUM_WORKERS) as exe:
+        futures = [exe.submit(worker_chunk, chunk) for chunk in chunks]
+        for _ in as_completed(futures):
+            pass  # errors are printed inside worker
+
+    print("✅ COMPLETE: all professors processed.")
 
 if __name__ == "__main__":
     main()
