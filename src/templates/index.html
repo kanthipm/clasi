@@ -56,14 +56,13 @@
   .review            { margin-bottom:0.75rem; padding-bottom:0.5rem; border-bottom:1px solid #ddd; }
 
   .star-rating {
-    display:inline-flex; flex-direction:row-reverse;
+    display:inline-flex; 
     font-size:1.8rem; justify-content:center; padding:0.5rem 0;
   }
   .star-rating .star       { cursor:pointer; color:#ccc; transition:color 0.2s; }
   .star-rating .star:hover,
   .star-rating .star:hover ~ .star,
-  .star-rating .star.selected,
-  .star-rating .star.selected ~ .star { color:gold; }
+  .star-rating .star.selected { color:gold; }
 
   /* ---------- Pager -------------------------------------------------------- */
   #pager               { display:flex; justify-content:center; flex-wrap:wrap; gap:4px; margin-top:1rem; }
@@ -284,7 +283,7 @@
         const detailRow  = document.createElement("tr");
         detailRow.classList.add("detail-row");
         const cell = document.createElement("td");
-        cell.colSpan = 6;
+        cell.colSpan = 7;
         cell.innerHTML = detailHtml;
         detailRow.appendChild(cell);
         rowEl.parentNode.insertBefore(detailRow, rowEl.nextElementSibling);
@@ -362,25 +361,30 @@
     });
 
     html += `<h5>Submit a Review</h5>
-      <form onsubmit="return submitReview(event,'${course.id}')">
-        <textarea name="review_text" required
-                  style="width:100%;height:80px;"
-                  placeholder="Write your review here…"></textarea><br>
+    <form onsubmit="return submitReview(event,'${course.id}')">
+      <textarea name="review_text" required
+                style="width:100%;height:80px;"
+                placeholder="Write your review here…"></textarea><br>
 
-        <label>Overall Rating:</label>
-        <div class="star-rating overall-stars">
-          ${[1,2,3,4,5].map(v=>`<span class="star" data-value="${v}">☆</span>`).join("")}
-          <input type="hidden" name="rating" required>
+      <div style="display:flex; align-items:center; gap:2rem; margin-bottom:1rem;">
+        <div>
+          <label>Overall Rating:</label>
+          <div class="star-rating overall-stars">
+            ${[1,2,3,4,5].map(v=>`<span class="star" data-value="${v}">☆</span>`).join("")}
+            <input type="hidden" name="rating" required>
+          </div>
         </div>
-
-        <label>Difficulty Rating:</label>
-        <div class="star-rating difficulty-stars">
-          ${[1,2,3,4,5].map(v=>`<span class="star" data-value="${v}">☆</span>`).join("")}
-          <input type="hidden" name="difficulty" required>
+        <div>
+          <label>Difficulty Rating:</label>
+          <div class="star-rating difficulty-stars">
+            ${[1,2,3,4,5].map(v=>`<span class="star" data-value="${v}">☆</span>`).join("")}
+            <input type="hidden" name="difficulty" required>
+          </div>
         </div>
+      </div>
 
-        <button type="submit">Submit Review</button>
-      </form>
+      <button type="submit">Submit Review</button>
+    </form>
     </div>`;
     return html;
   }
