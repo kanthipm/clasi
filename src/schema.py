@@ -17,6 +17,24 @@ def ensure_schema():
         "major": "TEXT"
     })
 
+    # Reviews table for course reviews
+    create_table("reviews", {
+        "id": "INTEGER PRIMARY KEY AUTOINCREMENT",
+        "course_id": "TEXT NOT NULL",
+        "user_id": "INTEGER NOT NULL",
+        "review_text": "TEXT",
+        "rating": "INTEGER",
+        "difficulty": "INTEGER",
+        "timestamp": "TEXT"
+    })
+
+    # Favorites table: mapping user_id to course_id
+    create_table("favorites", {
+        "user_id": "INTEGER",
+        "course_id": "TEXT",
+        "PRIMARY KEY (user_id, course_id)": ""
+    })
+
     # extra profile fields
     add_columns_if_missing("users", {
         "second_major":        "TEXT",
