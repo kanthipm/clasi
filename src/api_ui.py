@@ -290,7 +290,8 @@ def api_courses():
             c.catalog_nbr,
             c.course_title_long AS title,
             GROUP_CONCAT(DISTINCT mp.ssr_mtg_sched_long) AS schedule,
-            GROUP_CONCAT(DISTINCT i.name_display) AS professors
+            GROUP_CONCAT(DISTINCT i.name_display) AS professors,
+            MAX(pr.avg_rating) AS best_prof_rating
         FROM courses c
         LEFT JOIN class_listings   cl ON c.crse_id = cl.crse_id
         INNER JOIN meeting_patterns mp
@@ -298,10 +299,14 @@ def api_courses():
             AND mp.ssr_mtg_sched_long IS NOT NULL
         LEFT JOIN course_offerings co ON c.crse_id = co.crse_id
         LEFT JOIN course_attributes ca ON co.offering_id = ca.offering_id
-        LEFT JOIN instructors      i  ON cl.class_id = i.class_id
+        LEFT JOIN instructors i ON cl.class_id = i.class_id
+        LEFT JOIN professor_ratings pr ON i.name_display = pr.professor
         {where_sql}
         GROUP BY c.crse_id
-        ORDER BY c.subject, CAST(c.catalog_nbr AS INTEGER)
+        ORDER BY 
+            COALESCE(MAX(pr.avg_rating), -1) DESC,
+            c.subject,
+            CAST(c.catalog_nbr AS INTEGER)
         LIMIT ? OFFSET ?
     """
 
