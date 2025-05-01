@@ -218,7 +218,7 @@
     }
 
     let html = `<table>
-      <tr><th></th><th>ID</th><th>Subject</th><th>Catalog #</th><th>Title</th><th>Schedule</th><th>Professor(s)</th></tr>`;
+      <tr><th></th><th>Subject</th><th>Catalog #</th><th>Title</th><th>Schedule</th><th>Professor(s)</th></tr>`;
     courseList.forEach(c => {
       const heart = favoritesList.includes(c.id) ? "❤️" : "🤍";
       html += `<tr class="course-row"
@@ -226,7 +226,6 @@
                   onclick="toggleCourseDetail(event, this, '${c.id}')">
         <td><span class="favorite-btn" onclick="toggleFavorite(event,'${c.id}')">
             ${heart}</span></td>
-        <td>${c.id}</td>
         <td>${c.subject}</td>
         <td>${(c.catalog_nbr||'').trim()}</td>
         <td>${c.title}</td>
@@ -284,7 +283,7 @@
         const detailRow  = document.createElement("tr");
         detailRow.classList.add("detail-row");
         const cell = document.createElement("td");
-        cell.colSpan   = 7;
+        cell.colSpan = 6;
         cell.innerHTML = detailHtml;
         detailRow.appendChild(cell);
         rowEl.parentNode.insertBefore(detailRow, rowEl.nextElementSibling);
