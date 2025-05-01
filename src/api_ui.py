@@ -289,11 +289,13 @@ def api_courses():
             c.subject,
             c.catalog_nbr,
             c.course_title_long AS title,
-            ca.curriculum_areas_of_knowledge AS aok,
-            ca.curriculum_modes_of_inquiry   AS moi,
+            GROUP_CONCAT(DISTINCT mp.ssr_mtg_sched_long) AS schedule,
             GROUP_CONCAT(DISTINCT i.name_display) AS professors
         FROM courses c
         LEFT JOIN class_listings   cl ON c.crse_id = cl.crse_id
+        INNER JOIN meeting_patterns mp
+            ON cl.class_id = mp.class_id
+            AND mp.ssr_mtg_sched_long IS NOT NULL
         LEFT JOIN course_offerings co ON c.crse_id = co.crse_id
         LEFT JOIN course_attributes ca ON co.offering_id = ca.offering_id
         LEFT JOIN instructors      i  ON cl.class_id = i.class_id

@@ -218,8 +218,7 @@
     }
 
     let html = `<table>
-      <tr><th></th><th>ID</th><th>Subject</th><th>Catalog #</th>
-          <th>Title</th><th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>`;
+      <tr><th></th><th>ID</th><th>Subject</th><th>Catalog #</th><th>Title</th><th>Schedule</th><th>Professor(s)</th></tr>`;
     courseList.forEach(c => {
       const heart = favoritesList.includes(c.id) ? "❤️" : "🤍";
       html += `<tr class="course-row"
@@ -231,8 +230,7 @@
         <td>${c.subject}</td>
         <td>${(c.catalog_nbr||'').trim()}</td>
         <td>${c.title}</td>
-        <td>${c.aok||''}</td>
-        <td>${c.moi||''}</td>
+        <td>${c.schedule||''}</td>
         <td>${c.professors||''}</td>
       </tr>`;
     });
@@ -286,7 +284,7 @@
         const detailRow  = document.createElement("tr");
         detailRow.classList.add("detail-row");
         const cell = document.createElement("td");
-        cell.colSpan   = 8;
+        cell.colSpan   = 7;
         cell.innerHTML = detailHtml;
         detailRow.appendChild(cell);
         rowEl.parentNode.insertBefore(detailRow, rowEl.nextElementSibling);
