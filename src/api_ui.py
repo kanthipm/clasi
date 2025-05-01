@@ -290,6 +290,7 @@ def api_courses():
             c.catalog_nbr,
             c.course_title_long AS title,
             GROUP_CONCAT(DISTINCT mp.ssr_mtg_sched_long) AS schedule,
+            GROUP_CONCAT(DISTINCT mp.ssr_mtg_loc_long) AS location,
             GROUP_CONCAT(DISTINCT i.name_display) AS professors,
             MAX(pr.avg_rating) AS best_prof_rating
         FROM courses c

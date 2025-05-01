@@ -218,7 +218,7 @@
     }
 
     let html = `<table>
-      <tr><th></th><th>Subject</th><th>Catalog #</th><th>Title</th><th>Schedule</th><th>Professor(s)</th></tr>`;
+      <tr><th></th><th>Subject</th><th>Catalog #</th><th>Title</th><th>Schedule</th><th>Location</th><th>Professor(s)</th></tr>`;
     courseList.forEach(c => {
       const heart = favoritesList.includes(c.id) ? "❤️" : "🤍";
       html += `<tr class="course-row"
@@ -230,6 +230,7 @@
         <td>${(c.catalog_nbr||'').trim()}</td>
         <td>${c.title}</td>
         <td>${c.schedule||''}</td>
+        <td>${c.location||''}</td>
         <td>${c.professors||''}</td>
       </tr>`;
     });
