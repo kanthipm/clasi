@@ -77,10 +77,10 @@ create_table("course_offerings", {
     "acad_career": "TEXT",
     "ssr_component": "TEXT"
 })
-create_table("course_attributes", {"offering_id": "TEXT PRIMARY KEY"})
+create_table("course_attributes", {"offering_id": "TEXT PRIMARY KEY", "descrlong":"TEXT", "rqrmnt_group_descr":"TEXT"})
 create_table("class_listings", {"class_id": "TEXT PRIMARY KEY", "crse_id": "TEXT", "crse_offer_nbr": "TEXT"})
-create_table("meeting_patterns", {"class_id": "TEXT", "ssr_mtg_loc_long": "TEXT", "ssr_mtg_sched_long": "TEXT"})
-create_table("instructors", {"class_id": "TEXT", "name_display": "TEXT", "last_name": "TEXT", "first_name": "TEXT"})
+create_table("meeting_patterns", {"class_id": "TEXT",  "class_section": "TEXT", "ssr_mtg_loc_long": "TEXT", "ssr_mtg_sched_long": "TEXT"})
+create_table("instructors", {"class_id": "TEXT",  "class_section": "TEXT", "name_display": "TEXT", "last_name": "TEXT", "first_name": "TEXT"})
 
 # --------------------
 # Select the most recent term
@@ -177,22 +177,34 @@ try:
             #    → guarantees we pick up *every* crse_attr_lov_descr
             # ──────────────────────────────────────────────────────────────
                 amap = defaultdict(list)
-                src_attrs = lst.get("course_attributes", []) or []
+                src_attrs = _as_list(
+                    _dig(lst, "course_attributes", "course_attribute"))
 
-            # grab details for this exact offering
+                src_attrs += _as_list(
+                    _dig(data,
+                        "ssr_get_course_offering_resp",
+                        "course_offering_result",
+                        "course_offering",
+                        "course_attributes",
+                        "course_attribute"))
+
                 try:
                     details = get_course_details(cid, off_nbr) or {}
-                    src_attrs += (
-                        details.get("ssr_get_course_offering_resp", {})
-                            .get("course_offering_result", {})
-                            .get("course_offering", {})
-                            .get("course_attributes", {})
-                            .get("course_attribute", [])
-                    )
                 except Exception as e:
                     print(f"    ⚠️  details call failed for {cid}/{off_nbr}: {e}")
+                    details = {}             # always defined so look-ups below succeed
 
-            # build the pivot dict and remember new column names
+                # ── merge attributes that appear only in the details payload ─────
+                src_attrs += _as_list(
+                    _dig(
+                        details,
+                        "ssr_get_course_offering_resp",
+                        "course_offering_result",
+                        "course_offering",
+                        "course_attributes",
+                        "course_attribute"
+                    )
+)
             # build the pivot dict and remember new column names
                 for a in _as_list(src_attrs):
                     if not _is_attr_dict(a):
@@ -200,7 +212,7 @@ try:
 
                     k_raw = a["crse_attr_lov_descr"].strip()
                     v_raw = a["crse_attr_value_lov_descr"].strip()
-                    if v_raw.lower() == "foreign languages curriculum courses":
+                    if v_raw.lower() == "foreign languages curriculum course":
                         v_raw = "(FL) Foreign Languages"
                     
                     if not (k_raw and v_raw):
@@ -210,11 +222,36 @@ try:
                     amap[k].append(v_raw)
                     attribute_columns.add(k)
 
+                course_off = (
+                    _dig(details,                       # 1️⃣ preferred – full details call
+                        "ssr_get_course_offering_resp",
+                        "course_offering_result",
+                        "course_offering")
+                    or
+                    _dig(data,                          # 2️⃣ fallback – metadata call
+                        "ssr_get_course_offering_resp",
+                        "course_offering_result",
+                        "course_offering")
+                    or {}
+                )
+
+                descr_txt = (
+                    lst.get("ssr_descrlong")            # value from class-listing
+                    or course_off.get("descrlong")      # fallback to course-offering
+                )
+
+                prereq_txt = (
+                    lst.get("rqrmnt_group_descr")       # present in some class-listings
+                    or course_off.get("rqrmnt_group_descr")
+                )
 
                 buffers["attrs"].append({
-                    "offering_id": off_id,
+                    "offering_id":          off_id,
+                    "descrlong":            descr_txt,
+                    "rqrmnt_group_descr":   prereq_txt,
                     **{k: ", ".join(v) for k, v in amap.items()}
                 })
+
             # class listing
                 cls_id = f"{off_id}_{term_code}"
                 buffers["classes"].append({"class_id": cls_id, "crse_id": cid, "crse_offer_nbr": off_nbr})
@@ -230,6 +267,7 @@ try:
                         # ── meeting row ───────────────────────────────────────
                         buffers["meetings"].append({
                             "class_id":           cls_id,
+                            "class_section":      p.get("class_section"), 
                             "ssr_mtg_loc_long":   p.get("ssr_mtg_loc_long"),
                             "ssr_mtg_sched_long": p.get("ssr_mtg_sched_long"),
                         })
@@ -240,6 +278,7 @@ try:
                         ):
                             buffers["instructors"].append({
                                 "class_id":     cls_id,
+                                "class_section":      p.get("class_section"), 
                                 "name_display": ins.get("name_display"),
                                 "last_name":    ins.get("last_name"),
                                 "first_name":   ins.get("first_name"),

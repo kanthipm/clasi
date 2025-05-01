@@ -1,41 +1,55 @@
 {% extends "base.html" %}
 {% block title %}Edit Profile{% endblock %}
 {% block content %}
-  <h1>Edit Profile</h1>
-  <form method="POST" enctype="multipart/form-data">
-    <label>Year:</label>
-    <input type="text" name="year" value="{{ year }}"><br>
+<h1>Edit Profile</h1>
 
-    <label>Major:</label>
-    <input type="text" name="major" value="{{ major }}"><br>
+<form method="POST" enctype="multipart/form-data" style="max-width:500px;">
+  <!-- Year dropdown -->
+  <label for="year">Year:</label>
+  <select id="year" name="year">
+    {% for y, label in years %}
+      <option value="{{ y }}" {{ "selected" if y == current_year else "" }}>{{ label }}</option>
+    {% endfor %}
+  </select><br><br>
 
-    <label>Second Major:</label>
-    <input type="text" name="second_major" value="{{ second_major }}"><br>
+  <!-- Major dropdown -->
+  <label for="major">Major:</label>
+  <select id="major" name="major">
+    <option value="">-- choose --</option>
+    {% for subj in subjects %}
+      <option value="{{ subj }}" {{ "selected" if subj == current_major else "" }}>{{ subj }}</option>
+    {% endfor %}
+  </select><br><br>
 
-    <label>Minor:</label>
-    <input type="text" name="minor" value="{{ minor }}"><br>
+  <!-- Extra academic fields -->
+  <label>Second Major:</label>
+  <input type="text" name="second_major" value="{{ second_major }}"><br><br>
 
-    <label>Advisor Name:</label>
-    <input type="text" name="advisor_name" value="{{ advisor_name }}"><br>
+  <label>Minor:</label>
+  <input type="text" name="minor" value="{{ minor }}"><br><br>
 
-    <label>Advisor Email:</label>
-    <input type="email" name="advisor_email" value="{{ advisor_email }}"><br>
+  <label>Advisor Name:</label>
+  <input type="text" name="advisor_name" value="{{ advisor_name }}"><br><br>
 
-    <label>Expected Graduation Term:</label>
-    <input type="text" name="expected_grad_term" value="{{ expected_grad_term }}"><br>
+  <label>Advisor Email:</label>
+  <input type="email" name="advisor_email" value="{{ advisor_email }}"><br><br>
 
-    <label>Admit Term:</label>
-    <input type="text" name="admit_term" value="{{ admit_term }}"><br>
+  <label>Expected Grad Term:</label>
+  <input type="text" name="expected_grad_term" value="{{ expected_grad_term }}"><br><br>
 
-    <label>Cumulative GPA:</label>
-    <input type="number" step="0.01" name="gpa" value="{{ gpa }}"><br>
+  <label>Admit Term:</label>
+  <input type="text" name="admit_term" value="{{ admit_term }}"><br><br>
 
-    <label>Total Units:</label>
-    <input type="number" step="0.1" name="units" value="{{ units }}"><br>
+  <label>Cumulative GPA:</label>
+  <input type="number" step="0.01" name="gpa" value="{{ gpa }}"><br><br>
 
-    <label>Profile Picture:</label>
-    <input type="file" name="profile_pic"><br>
+  <label>Total Units:</label>
+  <input type="number" step="0.1" name="units" value="{{ units }}"><br><br>
 
-    <button type="submit">Save Changes</button>
-  </form>
+  <!-- Profile picture upload -->
+  <label>Profile Picture:</label>
+  <input type="file" name="profile_pic" accept=".png,.jpg,.jpeg,.gif"><br><br>
+
+  <button type="submit">Save Changes</button>
+</form>
 {% endblock %}

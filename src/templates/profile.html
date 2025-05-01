@@ -1,67 +1,71 @@
 {% extends "base.html" %}
-{% block title %}Your Profile{% endblock %}
+{% block title %}My Profile{% endblock %}
 {% block content %}
-<h1>Your Profile</h1>
-{% if user.profile_pic %}
-  <img src="{{ url_for('static', filename='profile_pics/' + user.profile_pic) }}" width="150" alt="Profile Picture">
-{% else %}
-  <img src="{{ url_for('static', filename='default_avatar.png') }}" width="150" alt="No Profile Picture">
-{% endif %}
+<h1>My Profile</h1>
 
-<p><strong>Name:</strong> {{ user.name }}</p>
-<p><strong>Username:</strong> {{ user.username }}</p>
-<p><strong>Year:</strong> {{ user.year or 'Unknown' }}</p>
-<p><strong>Major:</strong> {{ user.major or 'Unknown' }}</p>
-<p><strong>Second Major:</strong> {{ user.second_major or 'None' }}</p>
-<p><strong>Minor:</strong> {{ user.minor or 'None' }}</p>
-<p><strong>Advisor:</strong> {{ user.advisor_name or 'N/A' }} ({{ user.advisor_email or 'N/A' }})</p>
-<p><strong>Expected Grad Term:</strong> {{ user.expected_grad_term or 'Unknown' }}</p>
-<p><strong>Admit Term:</strong> {{ user.admit_term or 'Unknown' }}</p>
-<p><strong>Cumulative GPA:</strong> {{ user.gpa or 'N/A' }}</p>
-<p><strong>Total Units:</strong> {{ user.units or 'N/A' }}</p>
+<!-- Profile picture (falls back to default.png) -->
+<img src="{{ url_for('static', filename='profile_pics/' ~ user.profile_pic_path) }}"
+     alt="Profile picture"
+     width="140"
+     style="border-radius:50%;object-fit:cover"><br><br>
 
-<hr>
-<h2>Favorite Classes</h2>
-<div id="favorites"></div>
+<table>
+  <tr><td><strong>Name:</strong></td>             <td>{{ user.name }}</td></tr>
+  <tr><td><strong>Username:</strong></td>         <td>{{ user.username }}</td></tr>
+  <tr><td><strong>Year:</strong></td>             <td>{{ user.year }}</td></tr>
+  <tr><td><strong>Major:</strong></td>            <td>{{ user.major }}</td></tr>
+  <tr><td><strong>Second Major:</strong></td>     <td>{{ user.second_major }}</td></tr>
+  <tr><td><strong>Minor:</strong></td>            <td>{{ user.minor }}</td></tr>
+  <tr><td><strong>Advisor:</strong></td>          <td>{{ user.advisor_name }} ({{ user.advisor_email }})</td></tr>
+  <tr><td><strong>Expected Grad Term:</strong></td><td>{{ user.expected_grad_term }}</td></tr>
+  <tr><td><strong>Admit Term:</strong></td>       <td>{{ user.admit_term }}</td></tr>
+  <tr><td><strong>Cumulative&nbsp;GPA:</strong></td><td>{{ user.gpa }}</td></tr>
+  <tr><td><strong>Total Units:</strong></td>      <td>{{ user.units }}</td></tr>
+</table>
 
 <p><a href="{{ url_for('edit_profile') }}">Edit Profile</a></p>
 
+<h2>Favorite Classes</h2>
+<div id="favorites"><em>Loading …</em></div>
+
 <script>
-  function fetchFavoritesProfile() {
-    fetch("/api/favorites")
-      .then(response => response.json())
-      .then(data => {
-        renderFavorites(data);
-      })
-      .catch(err => {
-        console.error("Error fetching favorites:", err);
-      });
+/* ----------------- Favorites ---------------------------------- */
+function fetchFavoritesProfile() {
+  fetch("/api/favorites")
+    .then(r => r.json())
+    .then(renderFavorites)
+    .catch(err => {
+      console.error("Error fetching favorites:", err);
+      document.getElementById("favorites").textContent =
+        "Failed to load favorites.";
+    });
+}
+
+function renderFavorites(courses) {
+  const favDiv = document.getElementById("favorites");
+  if (!courses.length) {
+    favDiv.innerHTML = "<p>You have no favorite classes.</p>";
+    return;
   }
 
-  function renderFavorites(courses) {
-    let html = "";
-    if(courses.length === 0) {
-      html = "<p>You have no favorite classes.</p>";
-    } else {
-      html = "<table><tr><th>ID</th><th>Department</th><th>Catalog #</th><th>Title</th><th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>";
-      courses.forEach(course => {
-        html += `<tr class="course-row" data-course-id="${course.id}" onclick="toggleCourseDetail(this, '${course.id}')">
-          <td>${course.id}</td>
-          <td>${course.department}</td>
-          <td>${course.catalog_nbr}</td>
-          <td>${course.title}</td>
-          <td>${course.aok}</td>
-          <td>${course.moi}</td>
-          <td>${course.professors || ""}</td>
-        </tr>`;
-      });
-      html += "</table>";
-    }
-    document.getElementById("favorites").innerHTML = html;
-  }
-  
-  window.onload = function() {
-    fetchFavoritesProfile();
-  }
+  let html = `<table>
+    <tr><th>ID</th><th>Subject</th><th>Catalog #</th><th>Title</th>
+        <th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>`;
+  courses.forEach(c => {
+    html += `<tr>
+      <td>${c.id}</td>
+      <td>${c.subject}</td>
+      <td>${(c.catalog_nbr || "").trim()}</td>
+      <td>${c.title}</td>
+      <td>${c.aok || ""}</td>
+      <td>${c.moi || ""}</td>
+      <td>${c.professors || ""}</td>
+    </tr>`;
+  });
+  html += "</table>";
+  favDiv.innerHTML = html;
+}
+
+window.onload = fetchFavoritesProfile;
 </script>
 {% endblock %}
