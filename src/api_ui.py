@@ -545,6 +545,69 @@ def api_favorites_delete():
 
     return jsonify({"success": True})
 
+# ─── Schedule Builder page ──────────────────────────────────────
+@app.route("/schedule")
+@login_required
+def schedule():
+    # need the list of subjects (majors) for the dropdown
+    conn = connect_db()
+    subjects = [r[0] for r in conn.execute("SELECT DISTINCT subject FROM courses ORDER BY subject").fetchall()]
+    conn.close()
+    return render_template("schedule.html", subjects=subjects)
+
+# ─── Schedule Builder API ───────────────────────────────────────
+@app.route("/api/schedule")
+@login_required
+def api_schedule():
+    major = request.args.get("major", "").strip()
+    if not major:
+        return jsonify({"error":"major is required"}), 400
+
+    sql = """
+    SELECT
+      c.crse_id                AS id,
+      c.catalog_nbr            AS catalog_nbr,
+      c.course_title_long      AS title,
+      GROUP_CONCAT(DISTINCT mp.ssr_mtg_sched_long) AS schedule,
+      MAX(pr.avg_rating)       AS avg_rating
+    FROM courses c
+    LEFT JOIN class_listings   cl ON c.crse_id = cl.crse_id
+    LEFT JOIN meeting_patterns mp
+      ON cl.class_id = mp.class_id
+      AND mp.ssr_mtg_sched_long IS NOT NULL
+    LEFT JOIN instructors     i  ON cl.class_id = i.class_id
+    LEFT JOIN professor_ratings pr
+      ON i.name_display = pr.professor
+    WHERE c.subject = ?
+    GROUP BY c.crse_id
+    ORDER BY avg_rating DESC
+    """
+
+    conn = _get_conn()
+    rows = conn.execute(sql, (major,)).fetchall()
+    conn.close()
+
+    # pick first 5 courses with unique schedule strings
+    selected = []
+    seen = set()
+    for r in rows:
+        sched = r["schedule"]
+        if not sched or sched in seen:
+            continue
+        seen.add(sched)
+        selected.append({
+            "id":          r["id"],
+            "catalog_nbr": r["catalog_nbr"],
+            "title":       r["title"],
+            "schedule":    sched,
+            "avg_rating":  float(r["avg_rating"] or 0)
+        })
+        if len(selected) == 5:
+            break
+
+    return jsonify(selected)
+
+
 # ───────────────────────────────────────────────────────────────
 if __name__ == "__main__":
     app.run(debug=True)   # auto-reload in development

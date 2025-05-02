@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Schedule Builder{% endblock %}
+{% block content %}
+<h1>Schedule Builder</h1>
+
+<div style="max-width:400px; margin-bottom:1rem;">
+  <label for="major">Choose your Major/Subject:</label>
+  <select id="major">
+    <option value="">-- pick one --</option>
+    {% for subj in subjects %}
+      <option value="{{ subj }}">{{ subj }}</option>
+    {% endfor %}
+  </select>
+  <button id="buildBtn">Suggest 5 Classes</button>
+</div>
+
+<div id="scheduleResults"><em>—</em></div>
+
+<script>
+  document.getElementById("buildBtn").addEventListener("click", () => {
+    const major = document.getElementById("major").value;
+    if (!major) return alert("Please pick a major.");
+    fetch(`/api/schedule?major=${encodeURIComponent(major)}`)
+      .then(r => r.json())
+      .then(courses => {
+        const out = document.getElementById("scheduleResults");
+        if (!courses.length) {
+          out.innerHTML = "<p>No non‑conflicting suggestions found.</p>";
+          return;
+        }
+        let html = `<table>
+          <tr><th>Catalog #</th><th>Title</th><th>Rating</th><th>Schedule Time</th></tr>`;
+        courses.forEach(c => {
+          html += `<tr>
+            <td>${c.catalog_nbr}</td>
+            <td>${c.title}</td>
+            <td>${c.avg_rating.toFixed(1)}</td>
+            <td>${c.schedule}</td>
+          </tr>`;
+        });
+        html += "</table>";
+        out.innerHTML = html;
+      });
+  });
+</script>
+{% endblock %}

@@ -51,6 +51,8 @@
     </nav>
     {% if session.username %}
       <nav class="nav-right">
+        <a href="{{ url_for('schedule') }}">Schedule Builder</a>
+        <span class="separator">|</span>
         <a href="{{ url_for('profile') }}">Profile</a>
         <span class="separator">|</span>
         <a href="{{ url_for('logout') }}">Logout</a>
