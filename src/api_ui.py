@@ -254,6 +254,9 @@ def api_courses():
     raw_moi   = request.args.getlist("moi")
     min_nbr   = request.args.get("min_nbr", type=int)
     max_nbr   = request.args.get("max_nbr", type=int)
+    location_filter = request.args.get("location", "").strip()
+    schedule_filter = request.args.get("schedule",     "").strip()
+
 
     aok_codes = normalize_codes(raw_aok)
     moi_codes = normalize_codes(raw_moi)
@@ -271,15 +274,23 @@ def api_courses():
         where.append("CAST(c.catalog_nbr AS INTEGER) >= ?"); params.append(min_nbr)
     if max_nbr is not None:
         where.append("CAST(c.catalog_nbr AS INTEGER) <= ?"); params.append(max_nbr)
+    if location_filter:
+        where.append("mp.ssr_mtg_loc_long LIKE ?")
+        params.append(f"%{location_filter}%")
+    if schedule_filter:
+        where.append("mp.ssr_mtg_sched_long LIKE ?")
+        params.append(f"%{schedule_filter}%")
+
     where_sql = " WHERE " + " AND ".join(where) if where else ""
 
     count_sql = f"""
         SELECT COUNT(DISTINCT c.crse_id)
         FROM courses c
-        LEFT JOIN class_listings   cl ON c.crse_id = cl.crse_id
+        LEFT JOIN class_listings cl ON c.crse_id = cl.crse_id
+        LEFT JOIN meeting_patterns mp ON cl.class_id = mp.class_id
         LEFT JOIN course_offerings co ON c.crse_id = co.crse_id
         LEFT JOIN course_attributes ca ON co.offering_id = ca.offering_id
-        LEFT JOIN instructors      i  ON cl.class_id = i.class_id
+        LEFT JOIN instructors i ON cl.class_id = i.class_id
         {where_sql}
     """
 

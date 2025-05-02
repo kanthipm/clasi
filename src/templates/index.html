@@ -11,7 +11,7 @@
   form.search-form {
     display: flex;
     flex-wrap: wrap;
-    gap: 1rem;
+    gap: 2rem;
     align-items: flex-start;
     margin-bottom: 1.5rem;
   }
@@ -113,6 +113,26 @@
     </div>
 
     <div class="form-group">
+      <label for="location">Location Contains:</label>
+      <input
+        type="text"
+        id="location"
+        name="location"
+        placeholder="e.g. East Duke 209"
+      />
+    </div>
+
+    <div class="form-group">
+      <label for="schedule">Schedule Contains:</label>
+      <input
+        type="text"
+        id="schedule"
+        name="schedule"
+        placeholder="e.g. MWF 3:05PM"
+      />
+    </div>
+
+    <div class="form-group">
       <label>Area(s) of Knowledge:</label>
       <div class="checkbox-group">
         {% for code in ["ALP","CZ","NS","QS","SS"] %}
@@ -197,6 +217,12 @@
     const maxNbr = document.getElementById("max_nbr").value;
     if (minNbr) params.append("min_nbr", minNbr);
     if (maxNbr) params.append("max_nbr", maxNbr);
+
+    const locationFilter = document.getElementById("location").value.trim();
+    if (locationFilter) params.append("location", locationFilter);
+
+    const schedFilter = document.getElementById("schedule").value.trim();
+    if (schedFilter)    params.append("schedule", schedFilter);
 
     fetch(`/api/courses?${params.toString()}`)
       .then(r => r.json())
