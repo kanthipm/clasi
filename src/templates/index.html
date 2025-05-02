@@ -136,6 +136,29 @@
       <div id="professor-suggestions" class="suggestions"></div>
     </div>
 
+    <!-- Exclude Time Conflicts -->
+    <div class="form-group">
+      <label>Exclude Classes During:</label>
+      <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+        <select name="conflict_days" multiple size="3" style="flex: 1;">
+          <option value="M">M</option>
+          <option value="Tu">Tu</option>
+          <option value="W">W</option>
+          <option value="Th">Th</option>
+          <option value="F">F</option>
+        </select>
+        <input type="time" name="conflict_start" required>
+        <input type="time" name="conflict_end" required>
+      </div>
+    </div>
+
+    <!-- Filter Classes Starting After -->
+    <div class="form-group">
+      <label>Only Classes After:</label>
+      <input type="time" name="after_time">
+    </div>
+
+
     <div class="form-group" style="align-self:flex-end;">
       <button type="submit">Fetch Courses</button>
     </div>
@@ -197,6 +220,19 @@
     const maxNbr = document.getElementById("max_nbr").value;
     if (minNbr) params.append("min_nbr", minNbr);
     if (maxNbr) params.append("max_nbr", maxNbr);
+
+    document.querySelectorAll("select[name='conflict_days'] option:checked")
+      .forEach(opt => params.append("conflict_days", opt.value));
+
+    const start = document.querySelector("input[name='conflict_start']").value;
+    const end   = document.querySelector("input[name='conflict_end']").value;
+    if (start && end) {
+      params.append("conflict_start", start);
+      params.append("conflict_end", end);
+    }
+
+    const afterTime = document.querySelector("input[name='after_time']").value;
+    if (afterTime) params.append("after_time", afterTime);
 
     fetch(`/api/courses?${params.toString()}`)
       .then(r => r.json())

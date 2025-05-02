@@ -240,6 +240,36 @@ def edit_profile():
 # ---------- API: /api/courses ----------------------------------------------
 @app.route("/api/courses", methods=["GET"])
 def api_courses():
+    import re
+    from datetime import datetime
+
+    def parse_meeting(schedule_str):
+        match = re.match(r"([MTuWThF]+)\s+(\d{1,2}:\d{2}[AP]M)\s*-\s*(\d{1,2}:\d{2}[AP]M)", schedule_str)
+        if not match:
+            return [], None, None
+
+        days_str, start_str, end_str = match.groups()
+
+        # Match multi-letter day codes first
+        days = re.findall(r'Th|Tu|M|W|F', days_str)
+
+        start_time = datetime.strptime(start_str, "%I:%M%p").time()
+        end_time   = datetime.strptime(end_str, "%I:%M%p").time()
+        return days, start_time, end_time
+
+
+    def conflicts_with(days, start_time, end_time, blocked_days, blocked_start, blocked_end):
+        if not start_time or not end_time or not blocked_start or not blocked_end:
+            return False
+
+        for d in days:
+            if d in blocked_days:
+                # Time overlap check
+                if start_time <= blocked_end and blocked_start <= end_time:
+                    return True
+        return False
+
+
     # pagination
     page         = max(request.args.get("page", 1, type=int), 1)
     per_page_req = request.args.get("per_page", 20, type=int)
@@ -254,36 +284,36 @@ def api_courses():
     raw_moi   = request.args.getlist("moi")
     min_nbr   = request.args.get("min_nbr", type=int)
     max_nbr   = request.args.get("max_nbr", type=int)
+    conflict_days = request.args.getlist("conflict_days")
+    conflict_start = request.args.get("conflict_start")
+    conflict_end = request.args.get("conflict_end")
+    after_time = request.args.get("after_time")
+
+    # Parse blocked time inputs
+    blocked_start = datetime.strptime(conflict_start, "%H:%M").time() if conflict_start else None
+    blocked_end   = datetime.strptime(conflict_end, "%H:%M").time() if conflict_end else None
+    after_time_obj = datetime.strptime(after_time, "%H:%M").time() if after_time else None
 
     aok_codes = normalize_codes(raw_aok)
     moi_codes = normalize_codes(raw_moi)
 
     where, params = [], []
     if subject:
-        where.append("c.subject=?");                   params.append(subject)
+        where.append("c.subject=?"); params.append(subject)
     for a in aok_codes:
         where.append("ca.curriculum_areas_of_knowledge LIKE ?"); params.append(f"%({a})%")
     for m in moi_codes:
-        where.append("ca.curriculum_modes_of_inquiry LIKE ?");   params.append(f"%({m})%")
+        where.append("ca.curriculum_modes_of_inquiry LIKE ?"); params.append(f"%({m})%")
     if professor:
-        where.append("i.name_display LIKE ?");        params.append(f"%{professor}%")
+        where.append("i.name_display LIKE ?"); params.append(f"%{professor}%")
     if min_nbr is not None:
         where.append("CAST(c.catalog_nbr AS INTEGER) >= ?"); params.append(min_nbr)
     if max_nbr is not None:
         where.append("CAST(c.catalog_nbr AS INTEGER) <= ?"); params.append(max_nbr)
     where_sql = " WHERE " + " AND ".join(where) if where else ""
 
-    count_sql = f"""
-        SELECT COUNT(DISTINCT c.crse_id)
-        FROM courses c
-        LEFT JOIN class_listings   cl ON c.crse_id = cl.crse_id
-        LEFT JOIN course_offerings co ON c.crse_id = co.crse_id
-        LEFT JOIN course_attributes ca ON co.offering_id = ca.offering_id
-        LEFT JOIN instructors      i  ON cl.class_id = i.class_id
-        {where_sql}
-    """
-
-    data_sql = f"""
+    # Pull everything for filtering
+    base_sql = f"""
         SELECT
             c.crse_id AS id,
             c.subject,
@@ -291,38 +321,51 @@ def api_courses():
             c.course_title_long AS title,
             GROUP_CONCAT(DISTINCT mp.ssr_mtg_sched_long) AS schedule,
             GROUP_CONCAT(DISTINCT mp.ssr_mtg_loc_long) AS location,
-            GROUP_CONCAT(DISTINCT i.name_display) AS professors,
-            MAX(pr.avg_rating) AS best_prof_rating
+            GROUP_CONCAT(DISTINCT i.name_display) AS professors
         FROM courses c
         LEFT JOIN class_listings   cl ON c.crse_id = cl.crse_id
-        INNER JOIN meeting_patterns mp
-            ON cl.class_id = mp.class_id
-            AND mp.ssr_mtg_sched_long IS NOT NULL
+        INNER JOIN meeting_patterns mp ON cl.class_id = mp.class_id AND mp.ssr_mtg_sched_long IS NOT NULL
         LEFT JOIN course_offerings co ON c.crse_id = co.crse_id
         LEFT JOIN course_attributes ca ON co.offering_id = ca.offering_id
         LEFT JOIN instructors i ON cl.class_id = i.class_id
-        LEFT JOIN professor_ratings pr ON i.name_display = pr.professor
         {where_sql}
         GROUP BY c.crse_id
-        ORDER BY 
-            COALESCE(MAX(pr.avg_rating), -1) DESC,
-            c.subject,
-            CAST(c.catalog_nbr AS INTEGER)
-        LIMIT ? OFFSET ?
     """
 
-    conn   = _get_conn()
-    total  = conn.execute(count_sql, params).fetchone()[0]
-    rows   = conn.execute(data_sql, params + [per_page, offset]).fetchall()
+    conn = _get_conn()
+    raw_courses = conn.execute(base_sql, params).fetchall()
     conn.close()
+
+    # Apply conflict and after-time filtering
+    filtered = []
+    for course in raw_courses:
+        keep = True
+        schedules = (course["schedule"] or "").split(",")
+
+        for sched in schedules:
+            days, start, end = parse_meeting(sched.strip())
+
+            if conflict_days and conflicts_with(days, start, end, conflict_days, blocked_start, blocked_end):
+                keep = False
+                break
+            if after_time_obj and start and start < after_time_obj:
+                keep = False
+                break
+
+        if keep:
+            filtered.append(dict(course))
+
+    total = len(filtered)
+    paged = filtered[offset:offset+per_page]
 
     return jsonify({
         "page":        page,
         "per_page":    per_page,
         "total":       total,
         "total_pages": (total + per_page - 1) // per_page,
-        "courses":     [dict(r) for r in rows]
+        "courses":     paged
     })
+
 
 # ---------- API: /api/course/<id> ------------------------------------------
 @app.route("/api/course/<course_id>", methods=["GET"])
