@@ -17,30 +17,88 @@
 <div id="scheduleResults"><em>—</em></div>
 
 <script>
-  document.getElementById("buildBtn").addEventListener("click", () => {
+  // Parses "MWF 10:00AM - 11:00AM" into [{day: "M", start: 600, end: 660}, ...]
+  function parseSchedule(str) {
+    if (typeof str !== "string" || !str.trim()) return [];
+    const parts = str.trim().split(/\s+/);
+    const daysPart = parts.shift();
+    const rest     = parts.join(" ");
+
+    const timeParts = rest.split(/\s*-\s*/);
+    if (timeParts.length !== 2) return [];
+    const [startRaw, endRaw] = timeParts.map(s => s.trim());
+    if (!startRaw || !endRaw) return [];
+
+    const toMin = t => {
+      const m = t.match(/^(\d+):(\d+)(AM|PM)$/);
+      if (!m) return NaN;
+      let hh = +m[1], mm = +m[2], ap = m[3];
+      if (ap === "PM" && hh < 12) hh += 12;
+      if (ap === "AM" && hh === 12) hh = 0;
+      return hh * 60 + mm;
+    };
+
+    const days = daysPart.match(/M|Tu|W|Th|F/g) || [];
+    const start = toMin(startRaw), end = toMin(endRaw);
+    return days.map(d => ({ day: d, start, end }));
+  }
+
+  // Returns true if schedule A and B overlap on any day/time
+  function conflicts(a, b) {
+    let A = parseSchedule(a.schedule), B = parseSchedule(b.schedule);
+    return A.some(x =>
+      B.some(y =>
+        x.day === y.day && x.start < y.end && y.start < x.end
+      )
+    );
+  }
+
+  // Pick top‑rated non‑conflicting courses, up to 5
+  function pickNonConflicting(courses) {
+    let sorted = courses.slice().sort((a,b)=>(b.avg_rating||0)-(a.avg_rating||0));
+    let picked = [];
+    for (let c of sorted) {
+      if (picked.every(p=>!conflicts(p,c))) {
+        picked.push(c);
+        if (picked.length === 5) break;
+      }
+    }
+    return picked;
+  }
+
+  document.getElementById("buildBtn").addEventListener("click", async () => {
     const major = document.getElementById("major").value;
-    if (!major) return alert("Please pick a major.");
-    fetch(`/api/schedule?major=${encodeURIComponent(major)}`)
-      .then(r => r.json())
-      .then(courses => {
-        const out = document.getElementById("scheduleResults");
-        if (!courses.length) {
-          out.innerHTML = "<p>No non‑conflicting suggestions found.</p>";
-          return;
-        }
-        let html = `<table>
-          <tr><th>Catalog #</th><th>Title</th><th>Rating</th><th>Schedule Time</th></tr>`;
-        courses.forEach(c => {
-          html += `<tr>
-            <td>${c.catalog_nbr}</td>
-            <td>${c.title}</td>
-            <td>${c.avg_rating.toFixed(1)}</td>
-            <td>${c.schedule}</td>
-          </tr>`;
-        });
-        html += "</table>";
-        out.innerHTML = html;
+    const out = document.getElementById("scheduleResults");
+    if (!major) {
+      return alert("Please pick a major first.");
+    }
+    out.innerHTML = "<p>Loading…</p>";
+    try {
+      const resp = await fetch(`/api/courses?subject=${encodeURIComponent(major)}&per_page=200`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      const all = Array.isArray(data) ? data : data.courses || [];
+      const picks = pickNonConflicting(all);
+      if (!picks.length) {
+        out.innerHTML = "<p>No non‑conflicting suggestions found.</p>";
+        return;
+      }
+      let html = `<table>
+        <tr><th>Catalog #</th><th>Title</th><th>Rating</th><th>Schedule Time</th></tr>`;
+      picks.forEach(c => {
+        html += `<tr>
+          <td>${c.catalog_nbr}</td>
+          <td>${c.title}</td>
+          <td>${(c.avg_rating||0).toFixed(1)}</td>
+          <td>${c.schedule||""}</td>
+        </tr>`;
       });
+      html += "</table>";
+      out.innerHTML = html;
+    } catch (err) {
+      console.error("Schedule builder error:", err);
+      out.innerHTML = `<p style="color:red">Error: ${err.message}</p>`;
+    }
   });
 </script>
 {% endblock %}
