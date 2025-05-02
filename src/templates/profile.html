@@ -29,6 +29,31 @@
 <div id="favorites"><em>Loading …</em></div>
 
 <script>
+
+function toggleFavoriteProfile(event, courseId) {
+  event.stopPropagation();
+  // Remove the row right away for instant UI feedback
+  const row = event.target.closest("tr");
+  row.remove();
+
+  fetch("/api/favorites", {
+    method: "DELETE",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({ course_id: courseId })
+  })
+  .then(r => {
+    if (!r.ok) throw new Error("Failed to remove favorite");
+    // reload entire list to pick up any other changes
+    fetchFavoritesProfile();
+  })
+  .catch(err => {
+    console.error(err);
+    // if it failed, put it back
+    fetchFavoritesProfile();
+  });
+}
+
+
 /* ----------------- Favorites ---------------------------------- */
 function fetchFavoritesProfile() {
   fetch("/api/favorites")
@@ -49,10 +74,16 @@ function renderFavorites(courses) {
   }
 
   let html = `<table>
-    <tr><th>ID</th><th>Subject</th><th>Catalog #</th><th>Title</th>
+    <tr><th></th><th>ID</th><th>Subject</th><th>Catalog #</th><th>Title</th>
         <th>AOK</th><th>MOI</th><th>Professor(s)</th></tr>`;
   courses.forEach(c => {
     html += `<tr>
+      <td>
+        <span class="favorite-btn"
+              onclick="toggleFavoriteProfile(event,'${c.id}')">
+          ❤️
+        </span>
+      </td>
       <td>${c.id}</td>
       <td>${c.subject}</td>
       <td>${(c.catalog_nbr || "").trim()}</td>
