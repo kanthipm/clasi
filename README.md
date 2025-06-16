@@ -41,12 +41,12 @@ Each semester, Duke students navigate a complex and high-stakes course selection
 
 4. Build the course database:
    ```bash
-   python create_db.py
+   python src/db.py
    ```
 
 5. Launch the Flask app:
    ```bash
-   python main.py
+   python api_ui.py
    ```
 
 ## Technical Stack
@@ -56,9 +56,4 @@ Each semester, Duke students navigate a complex and high-stakes course selection
 - **Data**:
   - Duke Curriculum API
   - RateMyProfessor scraping (requests, BeautifulSoup)
-
-## License
-
-MIT License
-
 
