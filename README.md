@@ -49,20 +49,6 @@ Each semester, Duke students navigate a complex and high-stakes course selection
    python main.py
    ```
 
-## Code Structure
-
-```
-clasi/
-├── create_db.py        # Scrapes Duke API to build course.db
-├── scraper.py          # Web scraper for RateMyProfessor
-├── main.py             # Flask backend for the app
-├── templates/          # HTML templates (Jinja2)
-├── static/             # CSS and JavaScript files
-├── course.db           # SQLite database (generated)
-├── requirements.txt    # Python dependencies
-└── clasi.png           # UI screenshot
-```
-
 ## Technical Stack
 
 - **Backend**: Flask, Python, SQLite
