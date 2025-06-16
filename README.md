@@ -8,6 +8,8 @@ Each semester, Duke students navigate a complex and high-stakes course selection
 
 **Clasi** simplifies that process by integrating official course data from Duke with additional insights from RateMyProfessor. Users can filter by academic codes (AOK, MOI), instructor ratings, difficulty, and more. Students can also leave reviews for specific classes and professors to help others make better decisions.
 
+![Clasi User Interface](clasi_ui.png)
+
 ## Features
 
 - Search courses by:
