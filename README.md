@@ -52,7 +52,7 @@ Each semester, Duke students navigate a complex and high-stakes course selection
 ## Technical Stack
 
 - **Backend**: Flask, Python, SQLite
-- **Frontend**: Jinja2 templates, HTML/CSS
+- **Frontend**: HTML/CSS (Jinja2)
 - **Data**:
   - Duke Curriculum API
   - RateMyProfessor scraping (requests, BeautifulSoup)
