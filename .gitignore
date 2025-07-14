@@ -1,3 +1,6 @@
-*.db  
-**/__pycache__  
+data/courses.db
+_pycache__/  
+**/__pycache__/  
 venv/
+.env/
+
