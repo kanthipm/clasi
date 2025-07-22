@@ -1,6 +1,8 @@
 import sqlite3
 
-DB_FILE = "courses.db"
+# Get absolute path to the `data/courses.db` file
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_FILE = os.path.join(BASE_DIR, "..", "data", "courses.db")
 
 def connect_db() -> sqlite3.Connection:
     """Open (or create) the SQLite database file and return its connection."""
