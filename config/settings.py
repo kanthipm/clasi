@@ -1,6 +1,10 @@
 import requests
+import os
+from dotenv import load_dotenv
 
-API_KEY = "efd0c684b3f184d564010f4c038868a7"
+load_dotenv()
+
+API_KEY = os.getenv("DUKE_API_TOKEN")
 BASE_URL = "https://streamer.oit.duke.edu/curriculum"
 endpoint = f"{BASE_URL}/list_of_values/fieldname/SUBJECT"
 
