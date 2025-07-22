@@ -2,6 +2,8 @@
 
 Keeping your semester course selection process simple — and Clasi.
 
+Check out the website! [Clasi link](https://clasi.onrender.com/login)
+
 ## Overview
 
 Each semester, Duke students navigate a complex and high-stakes course selection process. Balancing graduation requirements, GPA goals, professor preferences, and personal interests makes registration stressful—especially for first-year students.
