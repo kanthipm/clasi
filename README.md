@@ -1,4 +1,4 @@
-# Clasi
+# [Clasi](https://clasi.onrender.com/login)
 
 Keeping your semester course selection process simple — and Clasi.
 
