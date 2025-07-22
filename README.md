@@ -2,7 +2,7 @@
 
 Keeping your semester course selection process simple — and Clasi.
 
-Check out the website! [Clasi link](https://clasi.onrender.com/login)
+Check out the website [here](https://clasi.onrender.com/login)!
 
 ## Overview
 
